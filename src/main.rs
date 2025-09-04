@@ -1,8 +1,12 @@
 mod config;
 mod args;
+mod logs;
 
 use crate::config::{SystemConfig};
 use crate::args::{parse_args};
+use crate::logs::{init_logging};
+
+use tracing::info;
 
 fn main() -> Result<(), lexopt::Error> {
     let args = parse_args()?;
@@ -18,6 +22,10 @@ fn main() -> Result<(), lexopt::Error> {
         println!("Configuration test OK");
         std::process::exit(0);
     }
+
+    let _guard = init_logging(config.log_file);
     
+    info!("TRAHL is initializing...");
+
     Ok(())
 }

@@ -41,7 +41,7 @@ pub struct SystemConfig {
     pub master: Option<MasterConfig>,
     pub worker: Option<WorkerConfig>,
     pub log_level: String,
-    pub log_file: PathBuf,
+    pub log_file: Option<PathBuf>,
 }
 
 impl Default for WorkerConfig {
@@ -77,7 +77,7 @@ impl Default for SystemConfig {
             master: None,
             worker: None,
             log_level: "info".to_string(),
-            log_file: PathBuf::from("/dev/stdout"),
+            log_file: None,
         }
     }
 }
