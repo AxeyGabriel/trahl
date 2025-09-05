@@ -4,22 +4,23 @@ use std::path::{PathBuf};
 use std::fs;
 use toml;
 
-#[cfg_attr(test, derive(PartialEq, Eq, Debug))]
-#[derive(Deserialize)]
+#[cfg_attr(test, derive(PartialEq, Eq))]
+#[derive(Deserialize, Debug)]
 pub struct FsRemap {
     pub master: String,
     pub worker: String,
 }
 
-#[derive(Deserialize)]
+#[cfg_attr(test, derive(PartialEq, Eq))]
+#[derive(Deserialize, Debug)]
 #[serde(default)]
 pub struct MasterConfig {
     pub orch_bind_addr: SocketAddr,
     pub web_bind_addr: SocketAddr,
 }
 
-#[cfg_attr(test, derive(PartialEq, Eq, Debug))]
-#[derive(Deserialize)]
+#[cfg_attr(test, derive(PartialEq, Eq))]
+#[derive(Deserialize, Debug)]
 #[serde(default)]
 pub struct WorkerConfig {
     pub identifier: String,
@@ -35,13 +36,22 @@ pub struct WorkerConfig {
     pub mkvpropedit_path: PathBuf,
 }
 
-#[derive(Deserialize)]
+#[cfg_attr(test, derive(PartialEq, Eq))]
+#[derive(Deserialize, Debug)]
 #[serde(default)]
+pub struct LogConfig {
+    pub level: String,
+    pub file: Option<PathBuf>,
+}
+
+#[derive(Deserialize, Debug)]
 pub struct SystemConfig {
-    pub master: Option<MasterConfig>,
-    pub worker: Option<WorkerConfig>,
-    pub log_level: String,
-    pub log_file: Option<PathBuf>,
+    #[serde(default)]
+    pub master: MasterConfig,
+    #[serde(default)]
+    pub worker: WorkerConfig,
+    #[serde(default)]
+    pub log: LogConfig,
 }
 
 impl Default for WorkerConfig {
@@ -71,13 +81,21 @@ impl Default for MasterConfig {
     }
 }
 
+impl Default for LogConfig {
+    fn default() -> Self {
+        LogConfig {
+            level: "info".to_string(),
+            file: None,
+        }
+    }
+}
+
 impl Default for SystemConfig {
     fn default() -> Self {
         SystemConfig {
-            master: None,
-            worker: None,
-            log_level: "info".to_string(),
-            log_file: None,
+            master: MasterConfig::default(),
+            worker: WorkerConfig::default(),
+            log: LogConfig::default(),
         }
     }
 }
@@ -92,7 +110,7 @@ impl SystemConfig {
 
 #[cfg(test)]
 mod tests {
-    use crate::config::{SystemConfig, WorkerConfig};
+    use crate::config::{LogConfig, MasterConfig, SystemConfig, WorkerConfig};
     use tempfile::{NamedTempFile};
     use std::io::Write;
     use std::path::PathBuf;
@@ -130,34 +148,35 @@ mod tests {
     }
     
     #[test]
-    fn config_master() {
+    fn config_master_edited() {
         let mut conf_file = NamedTempFile::new().unwrap();
         let conf_content = indoc!{r#"
             [master]
             orch_bind_addr="0.0.0.0:1849"
-            web_bind_addr="0.0.0.0:1850"
+            web_bind_addr="0.0.0.0:1859"
             "#};
 
         write!(conf_file, "{}", conf_content).unwrap();
         let path = conf_file.path().to_str().unwrap();
         let config = SystemConfig::parse(&PathBuf::from(path)).unwrap();
 
-        assert!(config.master.is_some(), "Expected config.master to be Some, got None");
-        assert!(config.worker.is_none(), "Expected config.worker to be None, got Some");
+        assert_ne!(config.master, MasterConfig::default());
+        assert_eq!(config.worker, WorkerConfig::default());
+        assert_eq!(config.log, LogConfig::default());
     }
     
     #[test]
-    fn config_worker_defaults() {
+    fn config_defaults() {
         let mut conf_file = NamedTempFile::new().unwrap();
         let conf_content = indoc!{r#"
-            [worker]
             "#};
 
         write!(conf_file, "{}", conf_content).unwrap();
         let path = conf_file.path().to_str().unwrap();
         let config = SystemConfig::parse(&PathBuf::from(path)).unwrap();
 
-        assert!(config.worker.is_some(), "Expected config.worker to be Some, got None");
-        assert_eq!(config.worker.unwrap(), WorkerConfig::default());
+        assert_eq!(config.worker, WorkerConfig::default());
+        assert_eq!(config.worker, WorkerConfig::default());
+        assert_eq!(config.log, LogConfig::default());
     }
 }

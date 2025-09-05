@@ -1,12 +1,12 @@
-use std::path::{PathBuf};
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::{fmt, EnvFilter};
+use crate::config::LogConfig;
 
-pub fn init_logging(log_file: Option<PathBuf>) -> Option<WorkerGuard> {
+pub fn init_logging(log_config: &LogConfig) -> Option<WorkerGuard> {
     let env_filter = EnvFilter::try_new("info")
         .expect("Error setting log level");
 
-    match &log_file {
+    match &log_config.file {
         Some(path) => {
             let dir = path.parent().expect("Could not extract log path");
             let file = path.file_name().expect("Could not extract log file name");

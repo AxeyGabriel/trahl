@@ -5,7 +5,7 @@ mod master;
 mod worker;
 
 use crate::config::{SystemConfig};
-use crate::args::{parse_args};
+use crate::args::{parse_args, StartupArgs};
 use crate::logs::{init_logging};
 use crate::master::master_thread;
 use crate::worker::worker_thread;
@@ -18,6 +18,7 @@ use std::sync::{Arc, OnceLock};
 use std::sync::atomic::AtomicBool;
 use std::thread;
 
+pub static CONFIG: OnceLock<SystemConfig> = OnceLock::new();
 pub static S_TERMINATE: OnceLock<Arc<AtomicBool>> = OnceLock::new();
 
 fn main() -> Result<(), Error> {
@@ -36,13 +37,17 @@ fn main() -> Result<(), Error> {
             std::process::exit(1);
         }
     };
+    CONFIG.set(config).unwrap();
+    let config_ref = CONFIG.get().unwrap();
+
 
     if args.config_test {
         println!("Configuration test OK");
         std::process::exit(0);
     }
 
-    let _guard = init_logging(config.log_file);
+
+    let _guard = init_logging(&config_ref.log);
 
     S_TERMINATE.set(Arc::new(AtomicBool::new(false))).unwrap();
     let s_term = S_TERMINATE.get().unwrap();
