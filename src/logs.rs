@@ -18,6 +18,7 @@ pub fn init_logging(log_file: Option<PathBuf>) -> Option<WorkerGuard> {
                 .with_thread_names(true)
                 .with_ansi(false)
                 .with_writer(nb)
+                .with_target(false)
                 .finish();
             tracing::subscriber::set_global_default(subscriber)
                 .expect("Failed to set local subscriber");
@@ -29,6 +30,7 @@ pub fn init_logging(log_file: Option<PathBuf>) -> Option<WorkerGuard> {
                 .with_env_filter(env_filter)
                 .with_thread_names(true)
                 .with_ansi(true)
+                .with_target(false)
                 .finish();
             tracing::subscriber::set_global_default(subscriber)
                 .expect("Failed to set local subscriber");
