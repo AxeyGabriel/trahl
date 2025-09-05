@@ -4,9 +4,9 @@ mod logs;
 mod master;
 mod worker;
 
-use crate::config::{SystemConfig};
-use crate::args::{parse_args, StartupArgs};
-use crate::logs::{init_logging};
+use crate::config::SystemConfig;
+use crate::args::parse_args;
+use crate::logs::init_logging;
 use crate::master::master_thread;
 use crate::worker::worker_thread;
 
