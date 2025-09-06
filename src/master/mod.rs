@@ -1,64 +1,51 @@
-use tracing::info;
+mod web;
+
+use tracing::{error, info};
 use std::sync::atomic::Ordering;
-use std::cell::RefCell;
 use tokio;
+use tokio::sync::watch;
+use tokio::time::{sleep, Duration};
 
-use super::{S_TERMINATE, CONFIG};
-
-thread_local! {
-    static CTX: RefCell<Context> = RefCell::default();
-}
-
-struct Context {
-    /* ORCH socket
-     * WEB socket
-     * KnownWorkers
-     * PendingJobs
-     * WorkingJobs
-     */
-    exiting: bool,
-}
-
-impl Default for Context {
-    fn default() -> Self {
-        Context {
-            exiting: false,
-        }
-    } 
-}
+use crate::master::web::web_service;
+use crate::S_TERMINATE;
 
 pub fn master_thread() {
-    let mut context = Context::default();
-
-    let async_rt = tokio::runtime::Builder::new_current_thread()
+    let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
-        .build()
-        .unwrap();
+        .build();
 
-    async_rt.block_on(async { 
-        master_init(&mut context).await;
+    match rt {
+        Ok(rt) => {
+            rt.block_on(master_runtime());
+        }
+        Err(e) => {
+            error!("Failed to build tokio runtime: {}", e)
+        }
+    }
+}
 
-        while !CTX.with_borrow(|c| c.exiting) {
-            master_loop().await;
+async fn master_runtime() {
+    let (ch_term_tx, ch_term_rx) = watch::channel(false);
+
+    let _ = tokio::join!(
+        tokio::spawn(web_service(ch_term_rx.clone())),
+        task_send_sigterm(ch_term_tx.clone()),
+    );
+}
+
+async fn task_send_sigterm(tx: watch::Sender<bool>) {
+    loop {
+        let s_term = S_TERMINATE
+            .get()
+            .unwrap()
+            .load(Ordering::Relaxed);
+
+        if s_term {
+            info!("Received termination signal");
+            let _ = tx.send(true);
+            break;
         }
 
-        master_exit().await;
-    });
-}
-
-async fn master_init(_ctx: &mut Context) {
-    info!("master is initializing...");
-}
-
-async fn master_loop() {
-    let term = S_TERMINATE.get().unwrap();
-    if term.load(Ordering::Relaxed) {
-        CTX.with_borrow_mut(|c| c.exiting = true);
+        sleep(Duration::from_millis(100)).await;
     }
-
-    std::thread::sleep(std::time::Duration::from_secs(1));
-}
-
-async fn master_exit() {
-    info!("exiting");
 }
