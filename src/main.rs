@@ -54,7 +54,7 @@ fn main() -> Result<(), Error> {
     flag::register(SIGINT, s_term.clone())?;
     flag::register(SIGTERM, s_term.clone())?;
     
-    info!("TRAHL is initializing...");
+    info!("TRAHL is setting up");
 
     let mut t_handles: [Option<thread::JoinHandle<()>>; 2] = [None, None];
 
@@ -79,7 +79,8 @@ fn main() -> Result<(), Error> {
             let _ = handle.join().unwrap();
         }
     }
+
+    info!("TRAHL is finished");
     
-    info!("TRAHL is exiting");
     Ok(())
 }
