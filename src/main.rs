@@ -113,3 +113,21 @@ fn main() -> Result<(), Error> {
     
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use std::sync::OnceLock;
+    use std::str::FromStr;
+    use tracing_subscriber::{fmt, EnvFilter};
+
+    pub fn init_tracing() {
+        static TRACING: OnceLock<()> = OnceLock::new();
+        TRACING.get_or_init(|| {
+            let filter = EnvFilter::from_str("debug").unwrap();
+            let subscriber = fmt()
+                .with_env_filter(filter)
+                .finish();
+            tracing::subscriber::set_global_default(subscriber).unwrap();
+        });
+    }
+}
