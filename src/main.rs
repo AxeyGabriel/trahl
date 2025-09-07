@@ -12,7 +12,7 @@ use crate::master::master_thread;
 use crate::worker::worker_thread;
 
 use std::io::Error;
-use tracing::info;
+use tracing::{info, error};
 use signal_hook::iterator::Signals;
 use signal_hook::consts::signal::{SIGINT, SIGTERM, SIGHUP};
 use std::sync::{Arc, OnceLock, RwLock};
@@ -50,7 +50,7 @@ fn main() -> Result<(), Error> {
     }
 
     let _guard = init_logging(&config_ref.read().unwrap().log);
-    
+
     S_TERMINATE.set(Arc::new(AtomicBool::new(false))).unwrap();
     S_RELOAD.set(Arc::new(AtomicBool::new(false))).unwrap();
 
@@ -68,14 +68,14 @@ fn main() -> Result<(), Error> {
                     let config = match SystemConfig::parse(&args.config_file) {
                         Ok(cfg) => cfg,
                         Err(e) => {
-                            eprintln!("Failed to load config \"{}\": {}", &args.config_file.display(), e);
-                            std::process::exit(1);
+                            error!("Failed to load config \"{}\": {}", &args.config_file.display(), e);
+                            continue;
                         }
                     };
                     *cfg = config;
                     info!("Configuration reloaded");
                 }
-                
+
                 if let Some(flag) = S_RELOAD.get() {
                     flag.store(true, Ordering::Relaxed);
                 }

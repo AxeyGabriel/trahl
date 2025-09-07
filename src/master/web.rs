@@ -1,5 +1,4 @@
 use tokio::time::{sleep, Duration};
-use tokio::sync::watch;
 use std::sync::Arc;
 use tracing::info;
 
@@ -14,7 +13,7 @@ pub async fn web_service(ctx: Arc<MasterCtx>) {
                 break;
             }
         }
-        info!("web");
+        info!("{:#?}", ctx.config.read().unwrap().jobs);
         sleep(Duration::from_secs(1)).await;
     }
 }

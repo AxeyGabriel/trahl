@@ -18,7 +18,6 @@ pub struct FsRemap {
 pub struct MasterConfig {
     pub orch_bind_addr: SocketAddr,
     pub web_bind_addr: SocketAddr,
-    pub jobs: Vec<JobConfig>,
 }
 
 #[cfg_attr(test, derive(PartialEq, Eq))]
@@ -67,6 +66,8 @@ pub struct SystemConfig {
     pub worker: WorkerConfig,
     #[serde(default)]
     pub log: LogConfig,
+    #[serde(default)]
+    pub jobs: Vec<JobConfig>,
 }
 
 impl Default for WorkerConfig {
@@ -92,7 +93,6 @@ impl Default for MasterConfig {
         MasterConfig {
             orch_bind_addr: "0.0.0.0:1849".parse().expect("Error setting orch_bind_addr"),
             web_bind_addr: "0.0.0.0:1850".parse().expect("Error setting web_bind_addr"),
-            jobs: Vec::new(),
         }
     }
 }
@@ -112,6 +112,7 @@ impl Default for SystemConfig {
             master: MasterConfig::default(),
             worker: WorkerConfig::default(),
             log: LogConfig::default(),
+            jobs: Vec::new(),
         }
     }
 }
@@ -200,23 +201,23 @@ mod tests {
     fn config_jobs() {
         let mut conf_file = NamedTempFile::new().unwrap();
         let conf_content = indoc!{r#"
-            [[master.jobs]]
+            [[jobs]]
             name = "Transcode Movies"
             enabled = true
             source_path = "/media/source/movies"
             destination_path = "/media/destination/movies"
             lua_script = "/configs/scripts/movie.lua"
-            [master.jobs.variables]
+            [jobs.variables]
             EXCLUDECODEC = "h265"
 
-            [[master.jobs]]
+            [[jobs]]
             name = "Transcode TV Shows"
             enabled = true
             source_path = "/media/source/tv"
             destination_path = "/media/destination/tv"
             lua_script = "/configs/scripts/tv.lua"
 
-            [master.jobs.variables]
+            [jobs.variables]
             QUALITY = "720p"
             CODEC = "hevc"
             PRESET = "medium"
@@ -226,39 +227,37 @@ mod tests {
         let path = conf_file.path().to_str().unwrap();
         let config = SystemConfig::parse(&PathBuf::from(path)).unwrap();
 
-        let expected_master = MasterConfig {
-            jobs: vec![
-                JobConfig {
-                    name: "Transcode Movies".to_string(),
-                    enabled: true,
-                    source_path: "/media/source/movies".into(),
-                    destination_path: "/media/destination/movies".into(),
-                    lua_script: "/configs/scripts/movie.lua".into(),
-                    lua_on_done: None,
-                    lua_on_start: None,
-                    variables: HashMap::from([
-                        ("EXCLUDECODEC".to_string(), "h265".to_string()),
-                    ]),
-                },
-                JobConfig {
-                    name: "Transcode TV Shows".to_string(),
-                    enabled: true,
-                    source_path: "/media/source/tv".into(),
-                    destination_path: "/media/destination/tv".into(),
-                    lua_script: "/configs/scripts/tv.lua".into(),
-                    lua_on_done: None,
-                    lua_on_start: None,
-                    variables: HashMap::from([
-                        ("QUALITY".to_string(), "720p".to_string()),
-                        ("CODEC".to_string(), "hevc".to_string()),
-                        ("PRESET".to_string(), "medium".to_string()),
-                    ]),
-                },
-            ],
-            ..MasterConfig::default()
-        };
+        let expected_jobs = vec![
+            JobConfig {
+                name: "Transcode Movies".to_string(),
+                enabled: true,
+                source_path: "/media/source/movies".into(),
+                destination_path: "/media/destination/movies".into(),
+                lua_script: "/configs/scripts/movie.lua".into(),
+                lua_on_done: None,
+                lua_on_start: None,
+                variables: HashMap::from([
+                    ("EXCLUDECODEC".to_string(), "h265".to_string()),
+                ]),
+            },
+            JobConfig {
+                name: "Transcode TV Shows".to_string(),
+                enabled: true,
+                source_path: "/media/source/tv".into(),
+                destination_path: "/media/destination/tv".into(),
+                lua_script: "/configs/scripts/tv.lua".into(),
+                lua_on_done: None,
+                lua_on_start: None,
+                variables: HashMap::from([
+                    ("QUALITY".to_string(), "720p".to_string()),
+                    ("CODEC".to_string(), "hevc".to_string()),
+                    ("PRESET".to_string(), "medium".to_string()),
+                ]),
+            },
+        ];
 
-        assert_eq!(config.master, expected_master);
+        assert_eq!(config.jobs, expected_jobs);
+        assert_eq!(config.master, MasterConfig::default());
         assert_eq!(config.worker, WorkerConfig::default());
         assert_eq!(config.log, LogConfig::default());
     }
