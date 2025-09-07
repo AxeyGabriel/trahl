@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 assert_cmd = "2.0.17"
+chrono = "0.4.41"
 indoc = "2.0.6"
 lexopt = "0.3.1"
 serde = { version = "1.0.219", features = ["derive"] }

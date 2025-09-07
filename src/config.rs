@@ -1,4 +1,5 @@
 use serde::Deserialize;
+use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::path::{PathBuf};
 use std::fs;
@@ -17,6 +18,18 @@ pub struct FsRemap {
 pub struct MasterConfig {
     pub orch_bind_addr: SocketAddr,
     pub web_bind_addr: SocketAddr,
+    pub jobs: Vec<Job>,
+}
+
+#[cfg_attr(test, derive(PartialEq, Eq))]
+#[derive(Deserialize, Debug)]
+pub struct Job {
+    pub name: String,
+    pub enabled: bool,
+    pub source_path: PathBuf,
+    pub destination_path: PathBuf,
+    pub lua_script: PathBuf,
+    pub variables: HashMap<String, String>,
 }
 
 #[cfg_attr(test, derive(PartialEq, Eq))]
@@ -77,6 +90,7 @@ impl Default for MasterConfig {
         MasterConfig {
             orch_bind_addr: "0.0.0.0:1849".parse().expect("Error setting orch_bind_addr"),
             web_bind_addr: "0.0.0.0:1850".parse().expect("Error setting web_bind_addr"),
+            jobs: Vec::new(),
         }
     }
 }
@@ -110,7 +124,7 @@ impl SystemConfig {
 
 #[cfg(test)]
 mod tests {
-    use crate::config::{LogConfig, MasterConfig, SystemConfig, WorkerConfig};
+    use crate::config::*;
     use tempfile::{NamedTempFile};
     use std::io::Write;
     use std::path::PathBuf;
@@ -176,6 +190,69 @@ mod tests {
         let config = SystemConfig::parse(&PathBuf::from(path)).unwrap();
 
         assert_eq!(config.worker, WorkerConfig::default());
+        assert_eq!(config.worker, WorkerConfig::default());
+        assert_eq!(config.log, LogConfig::default());
+    }
+    
+    #[test]
+    fn config_jobs() {
+        let mut conf_file = NamedTempFile::new().unwrap();
+        let conf_content = indoc!{r#"
+            [[master.jobs]]
+            name = "Transcode Movies"
+            enabled = true
+            source_path = "/media/source/movies"
+            destination_path = "/media/destination/movies"
+            lua_script = "/configs/scripts/movie.lua"
+            [master.jobs.variables]
+            EXCLUDECODEC = "h265"
+
+            [[master.jobs]]
+            name = "Transcode TV Shows"
+            enabled = true
+            source_path = "/media/source/tv"
+            destination_path = "/media/destination/tv"
+            lua_script = "/configs/scripts/tv.lua"
+
+            [master.jobs.variables]
+            QUALITY = "720p"
+            CODEC = "hevc"
+            PRESET = "medium"
+            "#};
+
+        write!(conf_file, "{}", conf_content).unwrap();
+        let path = conf_file.path().to_str().unwrap();
+        let config = SystemConfig::parse(&PathBuf::from(path)).unwrap();
+
+        let expected_master = MasterConfig {
+            jobs: vec![
+                Job {
+                    name: "Transcode Movies".to_string(),
+                    enabled: true,
+                    source_path: "/media/source/movies".into(),
+                    destination_path: "/media/destination/movies".into(),
+                    lua_script: "/configs/scripts/movie.lua".into(),
+                    variables: HashMap::from([
+                        ("EXCLUDECODEC".to_string(), "h265".to_string()),
+                    ]),
+                },
+                Job {
+                    name: "Transcode TV Shows".to_string(),
+                    enabled: true,
+                    source_path: "/media/source/tv".into(),
+                    destination_path: "/media/destination/tv".into(),
+                    lua_script: "/configs/scripts/tv.lua".into(),
+                    variables: HashMap::from([
+                        ("QUALITY".to_string(), "720p".to_string()),
+                        ("CODEC".to_string(), "hevc".to_string()),
+                        ("PRESET".to_string(), "medium".to_string()),
+                    ]),
+                },
+            ],
+            ..MasterConfig::default()
+        };
+
+        assert_eq!(config.master, expected_master);
         assert_eq!(config.worker, WorkerConfig::default());
         assert_eq!(config.log, LogConfig::default());
     }
