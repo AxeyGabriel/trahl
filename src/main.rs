@@ -3,6 +3,7 @@ mod args;
 mod logs;
 mod master;
 mod worker;
+mod lua;
 
 use crate::config::SystemConfig;
 use crate::args::parse_args;

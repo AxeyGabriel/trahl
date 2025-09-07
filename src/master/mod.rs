@@ -1,5 +1,4 @@
 mod web;
-mod lua;
 
 use tracing::{error, info};
 use std::sync::atomic::Ordering;
