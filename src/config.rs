@@ -28,7 +28,9 @@ pub struct Job {
     pub enabled: bool,
     pub source_path: PathBuf,
     pub destination_path: PathBuf,
+    pub lua_on_start: Option<PathBuf>,
     pub lua_script: PathBuf,
+    pub lua_on_done: Option<PathBuf>,
     pub variables: HashMap<String, String>,
 }
 
@@ -232,6 +234,8 @@ mod tests {
                     source_path: "/media/source/movies".into(),
                     destination_path: "/media/destination/movies".into(),
                     lua_script: "/configs/scripts/movie.lua".into(),
+                    lua_on_done: None,
+                    lua_on_start: None,
                     variables: HashMap::from([
                         ("EXCLUDECODEC".to_string(), "h265".to_string()),
                     ]),
@@ -242,6 +246,8 @@ mod tests {
                     source_path: "/media/source/tv".into(),
                     destination_path: "/media/destination/tv".into(),
                     lua_script: "/configs/scripts/tv.lua".into(),
+                    lua_on_done: None,
+                    lua_on_start: None,
                     variables: HashMap::from([
                         ("QUALITY".to_string(), "720p".to_string()),
                         ("CODEC".to_string(), "hevc".to_string()),
