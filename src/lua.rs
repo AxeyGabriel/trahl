@@ -4,7 +4,7 @@ mod time;
 
 use std::collections::HashMap;
 
-use mlua::{Lua, Result, Table};
+use mlua::{Lua, Result, StdLib, LuaOptions, Table};
 use tracing::{info, warn, error, debug};
 
 use serialization::_from_json;
@@ -14,9 +14,33 @@ use time::{
     _time,
 };
 
+const UTIL_LUA: &str = include_str!("../lualib/util.lua");
+
 pub fn create_lua_context(vars: Option<HashMap<String, String>>) -> Result<Lua> {
-    let luactx = Lua::new();
+    let luactx = Lua::new_with(
+        StdLib::TABLE
+        | StdLib::IO
+        | StdLib::STRING
+        | StdLib::MATH
+        | StdLib::UTF8
+        | StdLib::PACKAGE,
+        LuaOptions::default()
+    )?;
     let globals = luactx.globals();
+    let package: Table = globals.get("package")?;
+    let preload: Table = package.get("preload")?;
+
+    let register_module = |name: &str, code: &'static str| -> Result<()> {
+        let loader = luactx.create_function(move |lua, ()| {
+            let module: Table = lua.load(code).eval()?;
+            Ok(module)
+        })?;
+
+        preload.set(name, loader)?;
+        Ok(())
+    };
+
+    register_module("util", UTIL_LUA)?;
 
     let table_trahl = luactx.create_table()?;
     let table_vars = luactx.create_table()?;
@@ -28,7 +52,7 @@ pub fn create_lua_context(vars: Option<HashMap<String, String>>) -> Result<Lua> 
 
     globals.set("_trahl", &table_trahl)?;
     table_trahl.set("vars", table_vars)?;
-    
+
     Ok(luactx)
 }
 
@@ -38,18 +62,18 @@ fn create_ffis(luactx: &Lua, table: &Table) -> Result<()> {
     let ffi_http_request = luactx.create_async_function(_http_request)?;
     let ffi_from_json = luactx.create_function(_from_json)?;
     let ffi_time = luactx.create_function(_time)?;
-    
+
     table.set("INFO", 1)?;
     table.set("WARN", 2)?;
     table.set("ERROR", 3)?;
     table.set("DEBUG", 4)?;
     table.set("log", ffi_log)?;
-    
+
     table.set("delay_msec", ffi_delay_msec)?;
     table.set("http_request", ffi_http_request)?;
     table.set("from_json", ffi_from_json)?;
     table.set("time", ffi_time)?;
-    
+
     Ok(())
 }
 
@@ -91,7 +115,7 @@ mod tests {
 
         Ok(())
     }
-    
+
     #[tokio::test]
     async fn test_vars() -> Result<()> {
         init_tracing();
@@ -105,6 +129,32 @@ mod tests {
         lua.load(r#"
             assert(_trahl.vars.KEY_A == "VAL_A", "Wrong KEY_A value")
             assert(tonumber(_trahl.vars.KEY_B) == 123, "Wrong KEY_B value")
+        "#).exec_async().await?;
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_util_exists() -> Result<()> {
+        init_tracing();
+        let lua = create_lua_context(None)?;
+
+        lua.load(r#"
+            local c = require("util")
+        "#).exec_async().await?;
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_stdlibs() -> Result<()> {
+        init_tracing();
+        let lua = create_lua_context(None)?;
+
+        lua.load(r#"
+        local c = require("util")
+        local size = c.file_size("/home/axey/dsdt.aml")
+        print("File size is " .. size .. "bytes")
         "#).exec_async().await?;
 
         Ok(())
