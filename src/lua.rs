@@ -1,14 +1,18 @@
 mod http;
 mod serialization;
+mod time;
 
 use std::collections::HashMap;
 
 use mlua::{Lua, Result, Table};
 use tracing::{info, warn, error, debug};
-use tokio::time::{sleep, Duration};
 
 use serialization::_from_json;
 use http::_http_request;
+use time::{
+    _delay_msec,
+    _time,
+};
 
 pub fn create_lua_context(vars: Option<HashMap<String, String>>) -> Result<Lua> {
     let luactx = Lua::new();
@@ -33,6 +37,7 @@ fn create_ffis(luactx: &Lua, table: &Table) -> Result<()> {
     let ffi_delay_msec = luactx.create_async_function(_delay_msec)?;
     let ffi_http_request = luactx.create_async_function(_http_request)?;
     let ffi_from_json = luactx.create_function(_from_json)?;
+    let ffi_time = luactx.create_function(_time)?;
     
     table.set("INFO", 1)?;
     table.set("WARN", 2)?;
@@ -43,6 +48,7 @@ fn create_ffis(luactx: &Lua, table: &Table) -> Result<()> {
     table.set("delay_msec", ffi_delay_msec)?;
     table.set("http_request", ffi_http_request)?;
     table.set("from_json", ffi_from_json)?;
+    table.set("time", ffi_time)?;
     
     Ok(())
 }
@@ -63,12 +69,6 @@ fn _log(_: &Lua, (level, msg): (u8, String)) -> Result<()> {
         4u8 => debug!(target: "lua", "{}", msg),
         _ => info!(target: "lua", "{}", msg),
     }
-    Ok(())
-}
-
-async fn _delay_msec(_: Lua, t: u64) -> Result<()> {
-    let duration = Duration::from_millis(t);
-    sleep(duration).await;
     Ok(())
 }
 
