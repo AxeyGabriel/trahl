@@ -18,12 +18,12 @@ pub struct FsRemap {
 pub struct MasterConfig {
     pub orch_bind_addr: SocketAddr,
     pub web_bind_addr: SocketAddr,
-    pub jobs: Vec<Job>,
+    pub jobs: Vec<JobConfig>,
 }
 
 #[cfg_attr(test, derive(PartialEq, Eq))]
 #[derive(Deserialize, Debug)]
-pub struct Job {
+pub struct JobConfig {
     pub name: String,
     pub enabled: bool,
     pub source_path: PathBuf,
@@ -228,7 +228,7 @@ mod tests {
 
         let expected_master = MasterConfig {
             jobs: vec![
-                Job {
+                JobConfig {
                     name: "Transcode Movies".to_string(),
                     enabled: true,
                     source_path: "/media/source/movies".into(),
@@ -240,7 +240,7 @@ mod tests {
                         ("EXCLUDECODEC".to_string(), "h265".to_string()),
                     ]),
                 },
-                Job {
+                JobConfig {
                     name: "Transcode TV Shows".to_string(),
                     enabled: true,
                     source_path: "/media/source/tv".into(),

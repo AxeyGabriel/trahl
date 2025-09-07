@@ -14,13 +14,14 @@ use crate::worker::worker_thread;
 use std::io::Error;
 use tracing::info;
 use signal_hook::flag;
-use signal_hook::consts::signal::{SIGINT, SIGTERM};
+use signal_hook::consts::signal::{SIGINT, SIGTERM, SIGHUP};
 use std::sync::{Arc, OnceLock};
 use std::sync::atomic::AtomicBool;
 use std::thread;
 
 pub static CONFIG: OnceLock<SystemConfig> = OnceLock::new();
 pub static S_TERMINATE: OnceLock<Arc<AtomicBool>> = OnceLock::new();
+pub static S_RELOAD: OnceLock<Arc<AtomicBool>> = OnceLock::new();
 
 fn main() -> Result<(), Error> {
     let args = match parse_args() {
@@ -52,8 +53,13 @@ fn main() -> Result<(), Error> {
 
     S_TERMINATE.set(Arc::new(AtomicBool::new(false))).unwrap();
     let s_term = S_TERMINATE.get().unwrap();
+
+    S_RELOAD.set(Arc::new(AtomicBool::new(false))).unwrap();
+    let s_hup = S_RELOAD.get().unwrap();
+
     flag::register(SIGINT, s_term.clone())?;
     flag::register(SIGTERM, s_term.clone())?;
+    flag::register(SIGHUP, s_hup.clone())?;
     
     info!("TRAHL is setting up");
 
