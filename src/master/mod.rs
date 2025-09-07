@@ -7,7 +7,7 @@ use tokio;
 use tokio::sync::watch;
 use tokio::sync::watch::{Receiver, Sender};
 use tokio::time::{sleep, Duration};
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
 use web::web_service;
 use crate::config::SystemConfig;
@@ -16,7 +16,7 @@ use crate::{CONFIG, S_TERMINATE, S_RELOAD};
 pub struct MasterCtx {
     pub ch_terminate: (Sender<bool>, Receiver<bool>),
     pub ch_reload: (Sender<bool>, Receiver<bool>),
-    pub config: &'static SystemConfig,
+    pub config: Arc<RwLock<SystemConfig>>,
 }
 
 pub fn master_thread() {
@@ -38,7 +38,7 @@ async fn master_runtime() {
     let ctx = Arc::new(MasterCtx {
         ch_terminate: watch::channel(false),
         ch_reload: watch::channel(false),
-        config: CONFIG.get().expect("configuration not initialized"),
+        config: CONFIG.get().expect("configuration not initialized").clone(),
     });
 
     let _ = tokio::join!(

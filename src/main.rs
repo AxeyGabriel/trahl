@@ -13,13 +13,14 @@ use crate::worker::worker_thread;
 
 use std::io::Error;
 use tracing::info;
-use signal_hook::flag;
+use signal_hook::iterator::Signals;
 use signal_hook::consts::signal::{SIGINT, SIGTERM, SIGHUP};
-use std::sync::{Arc, OnceLock};
+use std::sync::{Arc, OnceLock, RwLock};
 use std::sync::atomic::AtomicBool;
+use std::sync::atomic::Ordering;
 use std::thread;
 
-pub static CONFIG: OnceLock<SystemConfig> = OnceLock::new();
+pub static CONFIG: OnceLock<Arc<RwLock<SystemConfig>>> = OnceLock::new();
 pub static S_TERMINATE: OnceLock<Arc<AtomicBool>> = OnceLock::new();
 pub static S_RELOAD: OnceLock<Arc<AtomicBool>> = OnceLock::new();
 
@@ -39,8 +40,8 @@ fn main() -> Result<(), Error> {
             std::process::exit(1);
         }
     };
-    CONFIG.set(config).unwrap();
-    let config_ref = CONFIG.get().unwrap();
+    CONFIG.set(Arc::new(RwLock::new(config))).unwrap();
+    let config_ref = CONFIG.get().unwrap().clone();
 
 
     if args.config_test {
@@ -48,19 +49,40 @@ fn main() -> Result<(), Error> {
         std::process::exit(0);
     }
 
-
-    let _guard = init_logging(&config_ref.log);
-
-    S_TERMINATE.set(Arc::new(AtomicBool::new(false))).unwrap();
-    let s_term = S_TERMINATE.get().unwrap();
-
-    S_RELOAD.set(Arc::new(AtomicBool::new(false))).unwrap();
-    let s_hup = S_RELOAD.get().unwrap();
-
-    flag::register(SIGINT, s_term.clone())?;
-    flag::register(SIGTERM, s_term.clone())?;
-    flag::register(SIGHUP, s_hup.clone())?;
+    let _guard = init_logging(&config_ref.read().unwrap().log);
     
+    S_TERMINATE.set(Arc::new(AtomicBool::new(false))).unwrap();
+    S_RELOAD.set(Arc::new(AtomicBool::new(false))).unwrap();
+
+    let config_clone = CONFIG.get().unwrap().clone();
+    let mut signals = Signals::new(&[SIGHUP, SIGINT, SIGTERM])?;
+    thread::spawn(move || {
+        for sig in signals.forever() {
+            if sig == SIGINT || sig == SIGTERM {
+                if let Some(flag) = S_TERMINATE.get() {
+                    flag.store(true, Ordering::Relaxed);
+                }
+            } else if sig == SIGHUP {
+                {
+                    let mut cfg = config_clone.write().unwrap();
+                    let config = match SystemConfig::parse(&args.config_file) {
+                        Ok(cfg) => cfg,
+                        Err(e) => {
+                            eprintln!("Failed to load config \"{}\": {}", &args.config_file.display(), e);
+                            std::process::exit(1);
+                        }
+                    };
+                    *cfg = config;
+                    info!("Configuration reloaded");
+                }
+                
+                if let Some(flag) = S_RELOAD.get() {
+                    flag.store(true, Ordering::Relaxed);
+                }
+            }
+        }
+    });
+
     info!("TRAHL is setting up");
 
     let mut t_handles: [Option<thread::JoinHandle<()>>; 2] = [None, None];
