@@ -142,4 +142,32 @@ mod tests {
 
         Ok(())
     }
+
+    #[tokio::test]
+    async fn test_http_request_invalid_method() -> Result<()> {
+        init_tracing();
+        let lua = Lua::new();
+        let http_ffi = lua.create_async_function(_http_request)?;
+        lua.globals().set("http_request", http_ffi)?;
+
+        let lua_code = format!(r#"
+            function test_request()
+                local headers = {{
+                    ["Content-Type"] = "application/x-www-form-urlencoded",
+                    ["accept"] = "application/json",
+                }}
+                local raw_body = "param1=123&param2=abc"
+                local ok, status, body = pcall(http_request("INVALID", "{}/post", headers, raw_body))
+                return ok
+            end
+        "#, HTTPBIN);
+
+        lua.load(lua_code).exec_async().await?;
+
+        let test_fn: Function = lua.globals().get("test_request")?;
+        let ok: bool = test_fn.call_async(()).await?;
+
+        assert_eq!(ok, false);
+        Ok(())
+    }
 }

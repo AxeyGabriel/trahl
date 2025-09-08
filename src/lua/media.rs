@@ -27,20 +27,8 @@ mod tests {
         lua.globals().set("ffprobe", ffprobe_ffi)?;
 
         let lua_code = format!(r#"
-            function print_table(t)
-                for k, v in pairs(t) do
-                    if type(v) == "table" then
-                        print(k .. ":")
-                        print_table(v)
-                    else
-                        print(k, v)
-                    end
-                end
-            end
-
             function test_ffprobe()
                 local res = ffprobe("/home/axey/Videos/samples/MP4_1920_18MG.mp4")
-                print_table(res)
                 return res
             end
         "#);
