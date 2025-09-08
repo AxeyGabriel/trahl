@@ -4,6 +4,7 @@ mod logs;
 mod master;
 mod worker;
 mod lua;
+mod extcmd;
 
 use crate::config::SystemConfig;
 use crate::args::parse_args;
@@ -110,7 +111,7 @@ fn main() -> Result<(), Error> {
     }
 
     info!("TRAHL is finished");
-    
+
     Ok(())
 }
 
