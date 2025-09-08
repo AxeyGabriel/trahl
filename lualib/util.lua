@@ -8,4 +8,15 @@ function _M.file_size(path)
 	return size
 end
 
+function print_table(t)
+    for k, v in pairs(t) do
+        if type(v) == "table" then
+            print(k .. ":")
+            print_table(v)
+        else
+            print(k, v)
+        end
+    end
+end
+
 return _M

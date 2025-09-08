@@ -902,6 +902,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "mlua-json"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3f54e46f947c609342f180caa55dfc26c1fc694898331de671c6f7b862c35b0e"
+dependencies = [
+ "mlua",
+ "serde_json",
+]
+
+[[package]]
 name = "mlua-sys"
 version = "0.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1874,6 +1884,7 @@ dependencies = [
  "indoc",
  "lexopt",
  "mlua",
+ "mlua-json",
  "notify",
  "notify-debouncer-full",
  "reqwest",

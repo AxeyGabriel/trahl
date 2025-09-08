@@ -1,6 +1,7 @@
 mod http;
 mod serialization;
 mod time;
+mod media;
 
 use std::collections::HashMap;
 
@@ -12,6 +13,9 @@ use http::_http_request;
 use time::{
     _delay_msec,
     _time,
+};
+use media::{
+    _ffprobe,
 };
 
 const UTIL_LUA: &str = include_str!("../lualib/util.lua");
@@ -26,6 +30,9 @@ pub fn create_lua_context(vars: Option<HashMap<String, String>>) -> Result<Lua> 
         | StdLib::PACKAGE,
         LuaOptions::default()
     )?;
+
+    let _ = mlua_json::preload(&luactx);
+
     let globals = luactx.globals();
     let package: Table = globals.get("package")?;
     let preload: Table = package.get("preload")?;
@@ -62,6 +69,7 @@ fn create_ffis(luactx: &Lua, table: &Table) -> Result<()> {
     let ffi_http_request = luactx.create_async_function(_http_request)?;
     let ffi_from_json = luactx.create_function(_from_json)?;
     let ffi_time = luactx.create_function(_time)?;
+    let ffi_ffprobe = luactx.create_async_function(_ffprobe)?;
 
     table.set("INFO", 1)?;
     table.set("WARN", 2)?;
@@ -73,6 +81,7 @@ fn create_ffis(luactx: &Lua, table: &Table) -> Result<()> {
     table.set("http_request", ffi_http_request)?;
     table.set("from_json", ffi_from_json)?;
     table.set("time", ffi_time)?;
+    table.set("ffprobe", ffi_ffprobe)?;
 
     Ok(())
 }
