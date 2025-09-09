@@ -78,32 +78,13 @@ pub async fn ffprobe(cmdpath: &PathBuf, mediapath: &PathBuf) -> Result<JsonValue
 mod tests {
     use super::*;
     use std::path::PathBuf;
-    use tempfile::{tempdir, TempDir};
-    use tokio::process::Command;
-
-    async fn create_example_media() -> (TempDir, PathBuf) {
-        let dir = tempdir().expect("Failed to create tmpdir");
-        let video_path: PathBuf = dir.path().join("test.mp4");
-        let _ = Command::new("ffmpeg")
-            .args(&[
-                "-y",
-                "-v", "quiet",
-                "-f", "lavfi",
-                "-i", "color=c=red:s=320x240:d=1",
-                "-c:v", "libopenh264",
-                "-t", "1",
-                video_path.to_str().unwrap(),
-            ])
-            .status()
-            .await
-            .expect("Failed to create test media");
-
-        (dir, video_path)
-    }
 
     #[tokio::test]
     async fn test_ffprobe() -> Result<(), Box<dyn std::error::Error>> {
-        let (_d, video) = create_example_media().await;
+        let video = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("test-resources")
+            .join("red_320x240_h264_1s.mp4");
+
         let val = ffprobe(&PathBuf::from("ffprobe"), &video).await?;
         println!("{}", val);
         Ok(())

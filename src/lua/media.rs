@@ -28,10 +28,10 @@ mod tests {
 
         let lua_code = format!(r#"
             function test_ffprobe()
-                local res = ffprobe("/home/axey/Videos/samples/MP4_1920_18MG.mp4")
+                local res = ffprobe("{}/{}")
                 return res
             end
-        "#);
+        "#, env!("CARGO_MANIFEST_DIR"), "test-resources/red_320x240_h264_1s.mp4");
 
         lua.load(lua_code).exec_async().await?;
 

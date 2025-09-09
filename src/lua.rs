@@ -187,11 +187,11 @@ mod tests {
         init_tracing();
         let lua = create_lua_context(None, None)?;
 
-        lua.load(r#"
+        lua.load(format!(r#"
         local c = require("util")
-        local size = c.file_size("/home/axey/dsdt.aml")
+        local size = c.file_size("{}/{}")
         print("File size is " .. size .. "bytes")
-        "#).exec_async().await?;
+        "#, env!("CARGO_MANIFEST_DIR"), "test-resources/100_bytes_file.bin")).exec_async().await?;
 
         Ok(())
     }
