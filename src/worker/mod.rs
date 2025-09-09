@@ -1,3 +1,5 @@
+mod jobrunner;
+
 use tracing::{error, info};
 use std::sync::atomic::Ordering;
 use tokio;
@@ -8,6 +10,7 @@ use std::sync::{Arc, RwLock};
 
 use crate::config::SystemConfig;
 use crate::{CONFIG, S_TERMINATE, S_RELOAD};
+use jobrunner::{JobRunner, JobSpec};
 
 pub struct WorkerCtx {
     pub ch_terminate: (Sender<bool>, Receiver<bool>),
@@ -37,8 +40,22 @@ async fn worker_runtime() {
         config: CONFIG.get().expect("configuration not initialized").clone(),
     });
 
+    let (job_runner, _hjs) = JobRunner::new().run();
+
+    let res = job_runner
+        .spawn_job(JobSpec {
+            vars: None,
+            script: String::from(r#"
+                _trahl.log(_trahl.INFO, "hello from lua")
+                error
+            "#),
+        })
+        .await;
+    info!("Job finished: {:?}", res);
+
     let _ = tokio::join!(
         task_propagate_signals(ctx.clone()),
+
     );
 }
 
