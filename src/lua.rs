@@ -5,8 +5,9 @@ mod media;
 
 use std::collections::HashMap;
 
-use mlua::{Lua, Result, StdLib, LuaOptions, Table};
+use mlua::{AnyUserData, Error, Lua, LuaOptions, Result, StdLib, Table, UserData};
 use tracing::{info, warn, error, debug};
+use tokio::sync::mpsc;
 
 use serialization::_from_json;
 use http::_http_request;
@@ -18,9 +19,14 @@ use media::{
     _ffprobe,
 };
 
+struct OutChannelWrapper {
+    tx: mpsc::Sender<String>,
+}
+impl UserData for OutChannelWrapper {}
+
 const UTIL_LUA: &str = include_str!("../lualib/util.lua");
 
-pub fn create_lua_context(vars: Option<HashMap<String, String>>) -> Result<Lua> {
+pub fn create_lua_context(vars: Option<HashMap<String, String>>, out: Option<mpsc::Sender<String>>) -> Result<Lua> {
     let luactx = Lua::new_with(
         StdLib::TABLE
         | StdLib::IO
@@ -36,6 +42,10 @@ pub fn create_lua_context(vars: Option<HashMap<String, String>>) -> Result<Lua> 
     let globals = luactx.globals();
     let package: Table = globals.get("package")?;
     let preload: Table = package.get("preload")?;
+
+    if let Some(out) = out {
+        luactx.set_named_registry_value("out_channel", OutChannelWrapper {tx: out})?;
+    }
 
     let register_module = |name: &str, code: &'static str| -> Result<()> {
         let loader = luactx.create_function(move |lua, ()| {
@@ -64,7 +74,24 @@ pub fn create_lua_context(vars: Option<HashMap<String, String>>) -> Result<Lua> 
 }
 
 fn create_ffis(luactx: &Lua, table: &Table) -> Result<()> {
-    let ffi_log = luactx.create_function(_log)?;
+    //let ffi_log = luactx.create_function(_log)?;
+    let ffi_log = luactx.create_async_function(async move |lua, (level, msg): (u8, String)| {
+        match level {
+            1u8 => info!(target: "lua", "{}", msg),
+            2u8 => warn!(target: "lua", "{}", msg),
+            3u8 => error!(target: "lua", "{}", msg),
+            4u8 => debug!(target: "lua", "{}", msg),
+            _ => info!(target: "lua", "{}", msg),
+        }
+        match lua.named_registry_value::<AnyUserData>("out_channel") {
+            Ok(ud) => {
+                let tx_wrapper = ud.borrow::<OutChannelWrapper>()?;
+                tx_wrapper.tx.send(msg).await.map_err(Error::external);
+            }
+            Err(_) => {}
+        }
+        Ok(())
+    })?;
     let ffi_delay_msec = luactx.create_async_function(_delay_msec)?;
     let ffi_http_request = luactx.create_async_function(_http_request)?;
     let ffi_from_json = luactx.create_function(_from_json)?;
@@ -114,7 +141,7 @@ mod tests {
     #[tokio::test]
     async fn test_log() -> Result<()> {
         init_tracing();
-        let lua = create_lua_context(None)?;
+        let lua = create_lua_context(None, None)?;
         lua.load(r#"
             _trahl.log(_trahl.INFO, "INFO LOG")
             _trahl.log(_trahl.WARN, "WARN LOG")
@@ -133,7 +160,7 @@ mod tests {
             ("KEY_B".to_string(), "123".to_string())
         ]);
 
-        let lua = create_lua_context(Some(vars))?;
+        let lua = create_lua_context(Some(vars), None)?;
 
         lua.load(r#"
             assert(_trahl.vars.KEY_A == "VAL_A", "Wrong KEY_A value")
@@ -146,7 +173,7 @@ mod tests {
     #[tokio::test]
     async fn test_util_exists() -> Result<()> {
         init_tracing();
-        let lua = create_lua_context(None)?;
+        let lua = create_lua_context(None, None)?;
 
         lua.load(r#"
             local c = require("util")
@@ -158,7 +185,7 @@ mod tests {
     #[tokio::test]
     async fn test_stdlibs() -> Result<()> {
         init_tracing();
-        let lua = create_lua_context(None)?;
+        let lua = create_lua_context(None, None)?;
 
         lua.load(r#"
         local c = require("util")

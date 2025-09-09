@@ -42,16 +42,30 @@ async fn worker_runtime() {
 
     let (job_runner, _hjs) = JobRunner::new().run();
 
-    let res = job_runner
+    let mut jh = job_runner
         .spawn_job(JobSpec {
             vars: None,
             script: String::from(r#"
+                _trahl.log(_trahl.INFO, "hello from lua")
+                _trahl.log(_trahl.INFO, "hello from lua")
+                _trahl.log(_trahl.INFO, "hello from lua")
+                _trahl.log(_trahl.INFO, "hello from lua")
+                _trahl.log(_trahl.INFO, "hello from lua")
+                _trahl.log(_trahl.INFO, "hello from lua")
                 _trahl.log(_trahl.INFO, "hello from lua")
                 error
             "#),
         })
         .await;
-    info!("Job finished: {:?}", res);
+
+    tokio::spawn(async move {
+        while let Some(line) = jh.stdout_stream().recv().await {
+            info!("Received: {}", line);
+        }
+    });
+
+    //let result = jh.await_result().await;
+    //info!("Job finished: {:?}", result);
 
     let _ = tokio::join!(
         task_propagate_signals(ctx.clone()),
