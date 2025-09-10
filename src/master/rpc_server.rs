@@ -22,7 +22,7 @@ pub async fn rpc_server(ctx: Arc<MasterCtx>) {
 
     info!("Orchestration service listening at {}", bind_addr);
 
-    let ch_term = &ctx.ch_terminate.1;
+    let mut ch_term = ctx.ch_terminate.1.clone();
     loop {
         tokio::select!(
             msg = zmq_helper::recv_msg(&mut router, true) => {
@@ -35,14 +35,19 @@ pub async fn rpc_server(ctx: Arc<MasterCtx>) {
                     }
                 }
             },
-            _ = sleep(Duration::from_secs(1)) => {
-                if let Ok(_) = ch_term.has_changed() {
-                    if *ch_term.borrow() {
-                        break;
-                    }
-                } 
+            _ = ch_term.changed() => {
+                if *ch_term.borrow() {
+                    break;
+                }
             }
         );
     }
+/*
+    todo: send bye to all workers
+*/
+    sleep(Duration::from_secs(1)).await;
+    info!("Stopping orchestration service");
+    let _ = router.unbind_all();
+
 }
 

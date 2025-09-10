@@ -25,7 +25,7 @@ pub async fn rpc_client(ctx: Arc<WorkerCtx>) {
 
     info!("Connected to master at {}", master_addr);
 
-    let ch_term = &ctx.ch_terminate.1;
+    let mut ch_term = ctx.ch_terminate.1.clone();
     loop {
         tokio::select!(
             _ = sleep(Duration::from_secs(1)) => {
@@ -42,13 +42,18 @@ pub async fn rpc_client(ctx: Arc<WorkerCtx>) {
                     }
                 }
             },
-            _ = sleep(Duration::from_secs(1)) => {
-                if let Ok(_) = ch_term.has_changed() {
-                    if *ch_term.borrow() {
-                        break;
-                    }
-                } 
+            _ = ch_term.changed() => {
+                if *ch_term.borrow() {
+                    break;
+                }
             }
         );
     }
+
+    info!("Disconnected from master");
+    let msg = Message::Bye;
+    let _ = zmq_helper::send_msg(
+            &mut socket,
+            None,
+            &msg).await;
 }
