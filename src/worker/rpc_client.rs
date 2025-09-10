@@ -57,7 +57,6 @@ pub async fn rpc_client(ctx: Arc<WorkerCtx>) {
             },
             _ = ch_term.changed() => {
                 if *ch_term.borrow() {
-                    tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
                     break;
                 }
             }
