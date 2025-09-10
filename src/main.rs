@@ -5,6 +5,7 @@ mod master;
 mod worker;
 mod lua;
 mod extcmd;
+mod rpc;
 
 use crate::config::SystemConfig;
 use crate::args::parse_args;

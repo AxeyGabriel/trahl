@@ -13,7 +13,7 @@ pub async fn web_service(ctx: Arc<MasterCtx>) {
                 break;
             }
         }
-        info!("{:#?}", ctx.config.read().unwrap().jobs);
+//        info!("{:#?}", ctx.config.read().unwrap().jobs);
         sleep(Duration::from_secs(1)).await;
     }
 }

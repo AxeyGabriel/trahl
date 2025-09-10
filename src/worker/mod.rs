@@ -1,4 +1,5 @@
 mod jobrunner;
+mod rpc_client;
 
 use tracing::{error, info};
 use std::sync::atomic::Ordering;
@@ -11,6 +12,7 @@ use std::sync::{Arc, RwLock};
 use crate::config::SystemConfig;
 use crate::{CONFIG, S_TERMINATE, S_RELOAD};
 use jobrunner::{JobRunner, JobSpec};
+use rpc_client::rpc_client;
 
 pub struct WorkerCtx {
     pub ch_terminate: (Sender<bool>, Receiver<bool>),
@@ -69,7 +71,7 @@ async fn worker_runtime() {
 
     let _ = tokio::join!(
         task_propagate_signals(ctx.clone()),
-
+        rpc_client(ctx.clone()),
     );
 }
 

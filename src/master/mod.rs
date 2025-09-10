@@ -1,6 +1,6 @@
 mod web;
 mod file_watcher;
-
+mod rpc_server;
 use tracing::{error, info};
 use std::sync::atomic::Ordering;
 use tokio;
@@ -10,6 +10,7 @@ use tokio::time::{sleep, Duration};
 use std::sync::{Arc, RwLock};
 
 use web::web_service;
+use rpc_server::rpc_server;
 use crate::config::SystemConfig;
 use crate::{CONFIG, S_TERMINATE, S_RELOAD};
 
@@ -43,6 +44,7 @@ async fn master_runtime() {
 
     let _ = tokio::join!(
         tokio::spawn(web_service(ctx.clone())),
+        tokio::spawn(rpc_server(ctx.clone())),
         task_propagate_signals(ctx.clone()),
     );
 }

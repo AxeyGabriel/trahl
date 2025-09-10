@@ -38,7 +38,7 @@ pub struct JobConfig {
 #[serde(default)]
 pub struct WorkerConfig {
     pub identifier: String,
-    pub orch_addr: SocketAddr,
+    pub master_addr: SocketAddr,
     pub fs_remaps: Option<Vec<FsRemap>>,
     pub cache_dir: PathBuf,
     pub handbrake_path: PathBuf,
@@ -74,7 +74,7 @@ impl Default for WorkerConfig {
     fn default() -> Self {
         WorkerConfig {
             identifier: "worker".to_string(),
-            orch_addr: "127.0.0.1:1849".parse().expect("Error setting orch_addr"),
+            master_addr: "127.0.0.1:1849".parse().expect("Error setting master_addr"),
             fs_remaps: None,
             cache_dir: PathBuf::from("./trahl-cache"),
             handbrake_path: PathBuf::from("handbrake"),
@@ -143,7 +143,7 @@ mod tests {
             web_bind_addr="0.0.0.0:1850"
             [worker]
             identifier="worker"
-            scrambleblebleorch_addr="127.0.0.1:1849"
+            scramblebleblemaster_addr="127.0.0.1:1849"
             cache_dir="/tmp/trahl-cache"
             handbrake_path="handbrake"
             ffmpeg_path="ffmpeg"
