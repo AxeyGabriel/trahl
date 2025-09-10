@@ -1,24 +1,31 @@
 mod web;
 mod file_watcher;
 mod rpc_server;
+mod peers;
+
 use tracing::{error, info};
 use std::sync::atomic::Ordering;
 use tokio;
 use tokio::sync::watch;
+use tokio::sync::RwLock as AsyncRwLock;
 use tokio::sync::watch::{Receiver, Sender};
 use tokio::time::{sleep, Duration};
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
+use std::sync::RwLock as SyncRwLock;
 
 use web::web_service;
 use rpc_server::rpc_server;
 use crate::config::SystemConfig;
+use crate::master::peers::PeerRegistry;
 use crate::{CONFIG, S_TERMINATE, S_RELOAD};
 
 pub struct MasterCtx {
-    pub ch_terminate: (Sender<bool>, Receiver<bool>),
-    pub ch_reload: (Sender<bool>, Receiver<bool>),
-    pub config: Arc<RwLock<SystemConfig>>,
+    pub ch_terminate:   (Sender<bool>, Receiver<bool>),
+    pub ch_reload:      (Sender<bool>, Receiver<bool>),
+    pub config:         Arc<SyncRwLock<SystemConfig>>,
+    pub peer_registry:  Arc<AsyncRwLock<PeerRegistry>>,
 }
+
 
 pub fn master_thread() {
     let rt = tokio::runtime::Builder::new_multi_thread()
@@ -40,6 +47,7 @@ async fn master_runtime() {
         ch_terminate: watch::channel(false),
         ch_reload: watch::channel(false),
         config: CONFIG.get().expect("configuration not initialized").clone(),
+        peer_registry: Arc::new(AsyncRwLock::new(PeerRegistry::default())),
     });
 
     let _ = tokio::join!(
@@ -47,6 +55,8 @@ async fn master_runtime() {
         tokio::spawn(rpc_server(ctx.clone())),
         task_propagate_signals(ctx.clone()),
     );
+
+    info!("Master terminated");
 }
 
 async fn task_propagate_signals(ctx: Arc<MasterCtx>) {
