@@ -4,6 +4,7 @@ use zeromq::DealerSocket;
 use tracing::{info, error};
 use tokio::time::{sleep, Duration};
 
+use crate::rpc::HelloMsg;
 use crate::rpc::Message;
 use crate::rpc::zmq_helper;
 use super::WorkerCtx;
@@ -25,30 +26,44 @@ pub async fn rpc_client(ctx: Arc<WorkerCtx>) {
 
     info!("Connected to master at {}", master_addr);
 
+    let msg = Message::Hello(HelloMsg {
+        identifier: "abc".to_string(),
+        simultaneous_jobs: 2,
+    });
+    match zmq_helper::send_msg(
+            &mut socket,
+            None,
+            &msg).await {
+        Ok(()) => {
+            info!("sent message: {:#?}", msg);
+        }
+        Err(e) => {
+            error!("error while sending message: {}", e);
+        }
+    };
+
     let mut ch_term = ctx.ch_terminate.1.clone();
     loop {
         tokio::select!(
-            _ = sleep(Duration::from_secs(1)) => {
-                let msg = Message::HelloAck;
-                match zmq_helper::send_msg(
-                        &mut socket,
-                        None,
-                        &msg).await {
-                    Ok(()) => {
-                        info!("sent message: {:#?}", msg);
+            msg = zmq_helper::recv_msg(&mut socket, false) => {
+                match msg {
+                    Ok((_, msg)) => {
+                        rx_handler(ctx.clone(), &msg).await;
                     }
                     Err(e) => {
-                        error!("error while sending message: {}", e);
+                        error!("Error while receiving message: {}", e);
                     }
                 }
             },
             _ = ch_term.changed() => {
                 if *ch_term.borrow() {
+                    tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
                     break;
                 }
             }
         );
     }
+
 
     info!("Disconnected from master");
     let msg = Message::Bye;
@@ -56,4 +71,16 @@ pub async fn rpc_client(ctx: Arc<WorkerCtx>) {
             &mut socket,
             None,
             &msg).await;
+}
+
+async fn rx_handler(ctx: Arc<WorkerCtx>, msg: &Message) {
+    info!("Received message: {:#?}", msg);
+    match msg {
+        Message::Bye => {
+            info!("BYE received from master");
+        }
+        _ => {
+            info!("Unknown message received: {:#?}", msg);
+        },
+    }
 }

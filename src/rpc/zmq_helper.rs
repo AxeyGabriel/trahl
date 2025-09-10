@@ -29,12 +29,13 @@ where
     S: SocketSend
 {
     let bytes = bincode::encode_to_vec(msg, bincode::config::standard())?;
+    let mut msg = ZmqMessage::from(bytes);
 
     if let Some(client_id) = client_id {
-        socket.send(ZmqMessage::from(client_id.to_vec())).await?;
+        msg.push_front(client_id.to_owned().into());
     }
 
-    socket.send(ZmqMessage::from(bytes)).await?;
+    socket.send(msg).await?;
 
     Ok(())
 }
