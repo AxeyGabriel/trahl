@@ -21,7 +21,7 @@ pub struct MasterCtx {
 }
 
 pub fn master_thread() {
-    let rt = tokio::runtime::Builder::new_current_thread()
+    let rt = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build();
 
