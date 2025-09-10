@@ -71,7 +71,7 @@ async fn worker_runtime() {
 
     let _ = tokio::join!(
         task_propagate_signals(ctx.clone()),
-        rpc_client(ctx.clone()),
+        tokio::spawn(rpc_client(ctx.clone())),
     );
 }
 
