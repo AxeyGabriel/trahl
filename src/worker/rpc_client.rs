@@ -77,7 +77,13 @@ async fn rx_handler(ctx: Arc<WorkerCtx>, msg: &Message) {
     match msg {
         Message::Bye => {
             info!("BYE received from master");
-        }
+        },
+        Message::HelloAck => {
+            info!("Successfuly connected to master");
+        },
+        Message::Ping => {
+
+        },
         _ => {
             info!("Unknown message received: {:#?}", msg);
         },
