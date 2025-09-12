@@ -6,26 +6,23 @@ mod peers;
 use tracing::{error, info};
 use std::sync::atomic::Ordering;
 use tokio;
-use tokio::sync::watch;
-use tokio::sync::RwLock as AsyncRwLock;
+use tokio::sync::{broadcast, watch};
 use tokio::sync::watch::{Receiver, Sender};
 use tokio::time::{sleep, Duration};
+use tokio::sync::Mutex;
 use std::sync::Arc;
 use std::sync::RwLock as SyncRwLock;
 
 use web::web_service;
-use rpc_server::rpc_server;
+use rpc_server::RpcServer;
 use crate::config::SystemConfig;
-use crate::master::peers::PeerRegistry;
 use crate::{CONFIG, S_TERMINATE, S_RELOAD};
 
 pub struct MasterCtx {
     pub ch_terminate:   (Sender<bool>, Receiver<bool>),
     pub ch_reload:      (Sender<bool>, Receiver<bool>),
     pub config:         Arc<SyncRwLock<SystemConfig>>,
-    pub peer_registry:  Arc<AsyncRwLock<PeerRegistry>>,
 }
-
 
 pub fn master_thread() {
     let rt = tokio::runtime::Builder::new_multi_thread()
@@ -47,12 +44,54 @@ async fn master_runtime() {
         ch_terminate: watch::channel(false),
         ch_reload: watch::channel(false),
         config: CONFIG.get().expect("configuration not initialized").clone(),
-        peer_registry: Arc::new(AsyncRwLock::new(PeerRegistry::default())),
     });
+
+    let rpc_server = Arc::new(Mutex::new(RpcServer::new()));
+
+
+    let rpc_server_clone = rpc_server.clone();
+    let task_test = async move {
+        let rpc_server_clone = rpc_server_clone.lock().await;
+        let mut events = rpc_server_clone
+            .subscribe_for_events();
+        let peer_registry = rpc_server_clone.peer_registry().await;
+        drop(rpc_server_clone);
+
+        loop {
+            match events.recv().await {
+                Ok(msg) => {
+                    info!("EVENT: {:#?}", msg);
+                    for (_, peer) in peer_registry
+                        .read()
+                        .await
+                        .iter() {
+                        info!("peer: {}", peer.get_params().identifier);
+                        }
+                }
+                Err(broadcast::error::RecvError::Closed) => {
+                    info!("Ch closed");
+                    break;
+                }
+                Err(broadcast::error::RecvError::Lagged(n)) => {
+                    info!("Missed {} msgs", n);
+                }
+            }
+            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        }
+    };
+    
+    let rpc_server_clone = rpc_server.clone();
+    let ctx_clone = ctx.clone();
+    let rpc_server_task = async move {
+        tokio::spawn(async move {
+            rpc_server_clone.lock().await.run(ctx_clone).await;
+        })
+    };
 
     let _ = tokio::join!(
         tokio::spawn(web_service(ctx.clone())),
-        tokio::spawn(rpc_server(ctx.clone())),
+        tokio::spawn(rpc_server_task),
+        tokio::spawn(task_test),
         task_propagate_signals(ctx.clone()),
     );
 

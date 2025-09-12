@@ -1,104 +1,74 @@
 use std::collections::{HashMap, VecDeque};
 use std::time::Instant;
+use tokio::sync::mpsc;
 
-use crate::rpc::Message;
-
-#[derive(Debug)]
-pub struct PeerInfo {
-    pub identifier: String,
-    pub last_seen: Instant,
-    pub simultaneous_jobs: u8,
-    pub handshake_state: Handshake,
-    pub tx_ringbuffer:  VecDeque<Message>,
-}
+use crate::rpc::{
+    Message,
+    HelloMsg,
+};
 
 pub type PeerId = Vec<u8>;
 
 #[derive(Debug)]
-pub struct PeerRegistry {
-    pub peers: HashMap<Vec<u8>, PeerInfo>
-}
-
-impl Default for PeerRegistry {
-    fn default() -> Self {
-        PeerRegistry { peers: HashMap::new() }
-    }
-}
-
-impl PeerRegistry {
-    pub fn contains(&self, id: &[u8]) -> bool {
-        self.peers.contains_key(id)
-    }
-
-    pub fn add(&mut self, id: PeerId, peer: PeerInfo) {
-        self.peers.insert(id, peer);
-    }
-
-    pub fn remove(&mut self, id: &[u8]) {
-        let _ = self.peers.remove(id);
-    }
-
-    pub fn get(&self, id: &[u8]) -> Option<&PeerInfo> {
-        self.peers
-            .get(id)
-    }
-    
-    pub fn get_mut(&mut self, id: &[u8]) -> Option<&mut PeerInfo> {
-        self.peers
-            .get_mut(id)
-    }
-
-    pub fn iter(&self) -> impl Iterator<Item = (&[u8], &PeerInfo)> {
-        self.peers
-            .iter()
-            .map(|(k,v)| (k.as_slice(), v))
-    }
-
-    pub fn poll_all(&mut self) -> Vec<(PeerId, Message)> {
-        self.peers
-            .iter_mut()
-            .filter_map(|(id, peer)| {
-                peer.poll()
-                    .map(|msg| (id.clone(), msg))
-            })
-            .collect()
-    }
+pub struct Peer {
+    socket_id: PeerId,
+    params: HelloMsg,
+    last_seen: Instant,
+    handshake_state: Handshake,
+    tx: mpsc::Sender<(PeerId, Message)>,
+    rx: mpsc::Receiver<Message>,
 }
 
 #[derive(Debug)]
 enum Handshake {
     Disconnected,
-    HelloSent,
-    HelloAckSent,
+    Discovered,
+    ConfigUpdateSent,
     Ready,
 }
 
-impl Default for PeerInfo {
-    fn default() -> Self {
-        PeerInfo {
-            identifier: "dummy".to_string(),
-            simultaneous_jobs: 1,
+impl Peer {
+    pub fn new(
+        hello: HelloMsg,
+        socket_id: PeerId,
+        tx: mpsc::Sender<(PeerId, Message)>,
+        rx: mpsc::Receiver<Message>,
+    ) -> Self {
+        Peer {
             last_seen: Instant::now(),
             handshake_state: Handshake::Disconnected,
-            tx_ringbuffer: VecDeque::default(),
-        }
-    }
-}
-
-impl PeerInfo {
-    pub async fn on_message(&mut self, msg: &Message) {
-        match msg {
-            Message::Hello(p) => {
-                self.handshake_state = Handshake::HelloSent;
-                self.tx_ringbuffer
-                    .push_back(Message::HelloAck);
-            }
-            _ => {},
+            socket_id,
+            params: hello,
+            tx,
+            rx,
         }
     }
 
-    pub fn poll(&mut self) -> Option<Message> {
-        self.tx_ringbuffer
-            .pop_front()
+    async fn send(&self, msg: Message) {
+        let _ = self.tx
+            .send((self.socket_id.clone(), msg))
+            .await;
+    }
+
+    pub async fn receive(&mut self) -> Option<Message> {
+        let msg = self.rx.recv().await;
+
+        if msg.is_some() {
+            self.last_seen = Instant::now();
+        }
+
+        msg
+    }
+
+    pub fn get_params(&self) -> &HelloMsg {
+        &self.params
+    }
+
+    pub fn get_last_seen(&self) -> &Instant {
+        &self.last_seen
+    }
+
+    pub fn update_last_seen(&mut self) {
+        self.last_seen = Instant::now();
     }
 }

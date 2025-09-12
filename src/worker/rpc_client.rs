@@ -35,7 +35,6 @@ pub async fn rpc_client(ctx: Arc<WorkerCtx>) {
             None,
             &msg).await {
         Ok(()) => {
-            info!("sent message: {:#?}", msg);
         }
         Err(e) => {
             error!("error while sending message: {}", e);
@@ -48,7 +47,7 @@ pub async fn rpc_client(ctx: Arc<WorkerCtx>) {
             msg = zmq_helper::recv_msg(&mut socket, false) => {
                 match msg {
                     Ok((_, msg)) => {
-                        rx_handler(ctx.clone(), &msg).await;
+                        rx_handler(ctx.clone(), &mut socket, &msg).await;
                     }
                     Err(e) => {
                         error!("Error while receiving message: {}", e);
@@ -64,7 +63,7 @@ pub async fn rpc_client(ctx: Arc<WorkerCtx>) {
     }
 
 
-    info!("Disconnected from master");
+    info!("Disconnected");
     let msg = Message::Bye;
     let _ = zmq_helper::send_msg(
             &mut socket,
@@ -72,8 +71,7 @@ pub async fn rpc_client(ctx: Arc<WorkerCtx>) {
             &msg).await;
 }
 
-async fn rx_handler(ctx: Arc<WorkerCtx>, msg: &Message) {
-    info!("Received message: {:#?}", msg);
+async fn rx_handler(ctx: Arc<WorkerCtx>, socket: &mut DealerSocket, msg: &Message) {
     match msg {
         Message::Bye => {
             info!("BYE received from master");
@@ -82,7 +80,7 @@ async fn rx_handler(ctx: Arc<WorkerCtx>, msg: &Message) {
             info!("Successfuly connected to master");
         },
         Message::Ping => {
-
+            zmq_helper::send_msg(socket, None, &Message::Pong).await;
         },
         _ => {
             info!("Unknown message received: {:#?}", msg);
