@@ -1,21 +1,25 @@
 mod web;
 mod file_watcher;
-mod rpc_server;
+mod socket_server;
 mod peers;
 
 use tracing::{error, info};
 use std::sync::atomic::Ordering;
 use tokio;
-use tokio::sync::{broadcast, watch};
+use tokio::sync::{broadcast, mpsc, watch};
 use tokio::sync::watch::{Receiver, Sender};
 use tokio::time::{sleep, Duration};
 use tokio::sync::Mutex;
 use std::sync::Arc;
 use std::sync::RwLock as SyncRwLock;
 
+use socket_server::SocketEvent;
+
 use web::web_service;
-use rpc_server::RpcServer;
+use socket_server::SocketServer;
 use crate::config::SystemConfig;
+use crate::master::peers::TxCoreDriverMsg;
+use crate::rpc::Message;
 use crate::{CONFIG, S_TERMINATE, S_RELOAD};
 
 pub struct MasterCtx {
@@ -46,37 +50,28 @@ async fn master_runtime() {
         config: CONFIG.get().expect("configuration not initialized").clone(),
     });
 
-    let rpc_server = Arc::new(Mutex::new(RpcServer::new()));
-
-
+    let (tx, mut rx) = mpsc::channel::<TxCoreDriverMsg>(8);
+    let rpc_server = Arc::new(Mutex::new(SocketServer::new(tx)));
     let rpc_server_clone = rpc_server.clone();
-    let task_test = async move {
+    
+    let task_driver = async move {
         let rpc_server_clone = rpc_server_clone.lock().await;
         let mut events = rpc_server_clone
             .subscribe_for_events();
-        let peer_registry = rpc_server_clone.peer_registry().await;
         drop(rpc_server_clone);
-
         loop {
-            match events.recv().await {
-                Ok(msg) => {
-                    info!("EVENT: {:#?}", msg);
-                    for (_, peer) in peer_registry
-                        .read()
-                        .await
-                        .iter() {
-                        info!("peer: {}", peer.get_params().identifier);
-                        }
+            tokio::select!(
+                msg = rx.recv() => {
+                    if let Some(msg) = msg {
+                        info!("task_driver: {:#?}", msg);
+                    }
+                },
+                event = events.recv() => {
+                    if let Ok(SocketEvent::PeerConnected(peer_id, tx)) = event {
+                        tx.send(Message::Bye).await;
+                    }
                 }
-                Err(broadcast::error::RecvError::Closed) => {
-                    info!("Ch closed");
-                    break;
-                }
-                Err(broadcast::error::RecvError::Lagged(n)) => {
-                    info!("Missed {} msgs", n);
-                }
-            }
-            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+            );
         }
     };
     
@@ -91,7 +86,7 @@ async fn master_runtime() {
     let _ = tokio::join!(
         tokio::spawn(web_service(ctx.clone())),
         tokio::spawn(rpc_server_task),
-        tokio::spawn(task_test),
+        tokio::spawn(task_driver),
         task_propagate_signals(ctx.clone()),
     );
 
