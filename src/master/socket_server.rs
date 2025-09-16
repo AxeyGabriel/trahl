@@ -106,7 +106,7 @@ impl SocketServer {
                                 }
                                 Message::Bye => {
                                     if let Some(val) = self.peer_map
-                                        .get(&peer_id) {
+                                        .remove(&peer_id) {
                                         val.1.abort();
                                         
                                         let _ = self.tx_event.send(SocketEvent::PeerDisconnected(
@@ -144,5 +144,16 @@ impl SocketServer {
         }
 
         info!("Stopping orchestration service");
+
+        for (peer_id, v) in self.peer_map.iter() {
+            let ph = &v.1;
+            let _ = self.tx_event.send(SocketEvent::PeerDisconnected(
+                peer_id.to_vec(),
+            )).await;
+
+            let _ = tx_peer_to_sock.send((peer_id.to_owned(), Message::Bye)).await;
+
+            ph.abort();
+        }
     }
 }

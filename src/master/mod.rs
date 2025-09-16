@@ -2,14 +2,14 @@ mod web;
 mod file_watcher;
 mod socket_server;
 mod peers;
+mod task_manager;
 
 use tracing::{error, info};
 use std::sync::atomic::Ordering;
 use tokio;
-use tokio::sync::{broadcast, mpsc, watch};
+use tokio::sync::{mpsc, watch};
 use tokio::sync::watch::{Receiver, Sender};
 use tokio::time::{sleep, Duration};
-use tokio::sync::Mutex;
 use std::sync::Arc;
 use std::sync::RwLock as SyncRwLock;
 
@@ -17,6 +17,7 @@ use socket_server::SocketEvent;
 
 use web::web_service;
 use socket_server::SocketServer;
+use task_manager::TaskManager;
 use crate::config::SystemConfig;
 use crate::master::peers::TxManagerMsg;
 use crate::rpc::Message;
@@ -52,31 +53,18 @@ async fn master_runtime() {
 
     let (
         tx_manager,
-        mut rx_manager
+        rx_manager
     ) = mpsc::channel::<TxManagerMsg>(8);
     
     let (
         tx_socketserver,
-        mut rx_socketserver
+        rx_socketserver
     ) = mpsc::channel::<SocketEvent>(8);
     
-    let task_manager = async move {
-        loop {
-            tokio::select!(
-                msg = rx_manager.recv() => {
-                    if let Some(msg) = msg {
-                        info!("task_driver: {:#?}", msg);
-                    }
-                },
-                event = rx_socketserver.recv() => {
-                    if let Some(SocketEvent::PeerConnected(peer_id, tx)) = event {
-                        info!("ev rx");
-                        let _ = tx.send(Message::Bye).await;
-                    }
-                },
-            );
-        }
-    };
+    let task_manager = TaskManager::new(
+        rx_manager,
+        rx_socketserver,
+    );
     
     let socket_server = SocketServer::new(
         tx_manager,
@@ -86,7 +74,7 @@ async fn master_runtime() {
     let _ = tokio::join!(
         tokio::spawn(web_service(ctx.clone())),
         tokio::spawn(socket_server.run(ctx.clone())),
-        tokio::spawn(task_manager),
+        tokio::spawn(task_manager.run(ctx.clone())),
         task_propagate_signals(ctx.clone()),
     );
 
