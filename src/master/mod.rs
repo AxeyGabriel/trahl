@@ -18,7 +18,7 @@ use socket_server::SocketEvent;
 use web::web_service;
 use socket_server::SocketServer;
 use crate::config::SystemConfig;
-use crate::master::peers::TxCoreDriverMsg;
+use crate::master::peers::TxManagerMsg;
 use crate::rpc::Message;
 use crate::{CONFIG, S_TERMINATE, S_RELOAD};
 
@@ -50,43 +50,43 @@ async fn master_runtime() {
         config: CONFIG.get().expect("configuration not initialized").clone(),
     });
 
-    let (tx, mut rx) = mpsc::channel::<TxCoreDriverMsg>(8);
-    let rpc_server = Arc::new(Mutex::new(SocketServer::new(tx)));
-    let rpc_server_clone = rpc_server.clone();
+    let (
+        tx_manager,
+        mut rx_manager
+    ) = mpsc::channel::<TxManagerMsg>(8);
     
-    let task_driver = async move {
-        let rpc_server_clone = rpc_server_clone.lock().await;
-        let mut events = rpc_server_clone
-            .subscribe_for_events();
-        drop(rpc_server_clone);
+    let (
+        tx_socketserver,
+        mut rx_socketserver
+    ) = mpsc::channel::<SocketEvent>(8);
+    
+    let task_manager = async move {
         loop {
             tokio::select!(
-                msg = rx.recv() => {
+                msg = rx_manager.recv() => {
                     if let Some(msg) = msg {
                         info!("task_driver: {:#?}", msg);
                     }
                 },
-                event = events.recv() => {
-                    if let Ok(SocketEvent::PeerConnected(peer_id, tx)) = event {
-                        tx.send(Message::Bye).await;
+                event = rx_socketserver.recv() => {
+                    if let Some(SocketEvent::PeerConnected(peer_id, tx)) = event {
+                        info!("ev rx");
+                        let _ = tx.send(Message::Bye).await;
                     }
-                }
+                },
             );
         }
     };
     
-    let rpc_server_clone = rpc_server.clone();
-    let ctx_clone = ctx.clone();
-    let rpc_server_task = async move {
-        tokio::spawn(async move {
-            rpc_server_clone.lock().await.run(ctx_clone).await;
-        })
-    };
+    let socket_server = SocketServer::new(
+        tx_manager,
+        tx_socketserver,
+    );
 
     let _ = tokio::join!(
         tokio::spawn(web_service(ctx.clone())),
-        tokio::spawn(rpc_server_task),
-        tokio::spawn(task_driver),
+        tokio::spawn(socket_server.run(ctx.clone())),
+        tokio::spawn(task_manager),
         task_propagate_signals(ctx.clone()),
     );
 

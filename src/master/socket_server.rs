@@ -1,7 +1,8 @@
+use std::net::SocketAddr;
 use std::sync::Arc;
 use zeromq::{prelude::*};
 use tracing::{info, error};
-use tokio::sync::{RwLock, mpsc, broadcast};
+use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 use tokio;
 use std::collections::HashMap;
@@ -17,33 +18,29 @@ const CHANNEL_BUFFER_SIZE: usize = 64;
 
 #[derive(Debug, Clone)]
 pub enum SocketEvent {
-    PeerConnected(PeerId, mpsc::Sender<RxCoreDriverMsg>),
+    PeerConnected(PeerId, mpsc::Sender<RxManagerMsg>),
     PeerDisconnected(PeerId),
 }
 
 pub struct SocketServer {
     peer_map: HashMap<PeerId, (mpsc::Sender<Message>, JoinHandle<()>, String)>,
-    tx_event: broadcast::Sender<SocketEvent>,
-    tx_to_core: mpsc::Sender<TxCoreDriverMsg>,
+    tx_event: mpsc::Sender<SocketEvent>,
+    tx_to_manager: mpsc::Sender<TxManagerMsg>,
 }
 
 impl SocketServer {
     pub fn new(
-        tx_to_core: mpsc::Sender<TxCoreDriverMsg>,
+        tx_to_manager: mpsc::Sender<TxManagerMsg>,
+        tx_event: mpsc::Sender<SocketEvent>,
     ) -> Self {
-        let (tx_event, _) = broadcast::channel(64);
         SocketServer {
             peer_map: HashMap::new(),
             tx_event,
-            tx_to_core,
+            tx_to_manager,
         }
     }
 
-    pub fn subscribe_for_events(&self) -> broadcast::Receiver<SocketEvent> {
-        self.tx_event.subscribe()
-    }
-
-    pub async fn run(&mut self, ctx: Arc<MasterCtx>) {
+    pub async fn run(mut self, ctx: Arc<MasterCtx>) {
         let bind_addr = format!("tcp://{}",
             &ctx.config
             .read()
@@ -75,14 +72,16 @@ impl SocketServer {
                             match msg {
                                 Message::Hello(hm) => {
                                     if !self.peer_map.contains_key(&peer_id) {
+                                        info!("New peer connected: {}", hm.identifier);
+                                        
                                         let (
                                             tx_sock_to_peer,
                                             rx_sock_to_peer
                                         ) = mpsc::channel::<Message>(CHANNEL_BUFFER_SIZE);
                                         
                                         let (
-                                            tx_core_to_peer,
-                                            rx_core_to_peer
+                                            tx_manager_to_peer,
+                                            rx_manager_to_peer
                                         ) = mpsc::channel::<Message>(CHANNEL_BUFFER_SIZE);
                                         
                                         let p = Peer::new(
@@ -90,8 +89,8 @@ impl SocketServer {
                                             peer_id.to_vec(),
                                             tx_peer_to_sock.clone(),
                                             rx_sock_to_peer,
-                                            self.tx_to_core.clone(),
-                                            rx_core_to_peer,
+                                            self.tx_to_manager.clone(),
+                                            rx_manager_to_peer,
                                         );
                                         
                                         let ph = tokio::spawn(p.run());
@@ -101,16 +100,18 @@ impl SocketServer {
 
                                         let _ = self.tx_event.send(SocketEvent::PeerConnected(
                                             peer_id.to_vec(),
-                                            tx_core_to_peer,
-                                        ));
-                                        
-                                        info!("New peer connected: {}", hm.identifier);
+                                            tx_manager_to_peer,
+                                        )).await;
                                     }
                                 }
                                 Message::Bye => {
                                     if let Some(val) = self.peer_map
                                         .get(&peer_id) {
                                         val.1.abort();
+                                        
+                                        let _ = self.tx_event.send(SocketEvent::PeerDisconnected(
+                                            peer_id.to_vec(),
+                                        )).await;
 
                                         info!("Disconnected peer {}", val.2);
                                     }

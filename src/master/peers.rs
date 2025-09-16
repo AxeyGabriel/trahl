@@ -9,8 +9,8 @@ use crate::rpc::{
 
 pub type PeerId = Vec<u8>;
 
-pub type TxCoreDriverMsg = (PeerId, Message);
-pub type RxCoreDriverMsg = Message;
+pub type TxManagerMsg = (PeerId, Message);
+pub type RxManagerMsg = Message;
 pub type TxSocketMsg = (PeerId, Message);
 pub type RxSocketMsg = Message;
 
@@ -22,8 +22,8 @@ pub struct Peer {
     handshake_state: Handshake,
     tx_to_socket: mpsc::Sender<TxSocketMsg>,
     rx_from_socket: mpsc::Receiver<RxSocketMsg>,
-    tx_to_manager: mpsc::Sender<TxCoreDriverMsg>,
-    rx_from_manager: mpsc::Receiver<RxCoreDriverMsg>,
+    tx_to_manager: mpsc::Sender<TxManagerMsg>,
+    rx_from_manager: mpsc::Receiver<RxManagerMsg>,
 }
 
 #[derive(Debug)]
@@ -40,8 +40,8 @@ impl Peer {
         socket_id: PeerId,
         tx_to_socket: mpsc::Sender<TxSocketMsg>,
         rx_from_socket: mpsc::Receiver<RxSocketMsg>,
-        tx_to_manager: mpsc::Sender<TxCoreDriverMsg>,
-        rx_from_manager: mpsc::Receiver<RxCoreDriverMsg>,
+        tx_to_manager: mpsc::Sender<TxManagerMsg>,
+        rx_from_manager: mpsc::Receiver<RxManagerMsg>,
     ) -> Self {
         Peer {
             last_seen: Instant::now(),
@@ -77,7 +77,7 @@ impl Peer {
             .await;
     }
 
-    pub async fn receive_from_driver(&mut self) -> Option<RxCoreDriverMsg> {
+    pub async fn receive_from_driver(&mut self) -> Option<RxManagerMsg> {
         let msg = self.rx_from_manager.recv().await;
 
         msg
