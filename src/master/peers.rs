@@ -1,6 +1,7 @@
 use tracing::info;
 use std::time::Instant;
 use tokio::sync::mpsc;
+use tokio::time::{interval, Duration};
 
 use crate::rpc::{
     Message,
@@ -60,40 +61,32 @@ impl Peer {
             .send((self.socket_id.clone(), msg))
             .await;
     }
-
-    pub async fn receive_from_socket(&mut self) -> Option<RxSocketMsg> {
-        let msg = self.rx_from_socket.recv().await;
-
-        if msg.is_some() {
-            self.last_seen = Instant::now();
-        }
-
-        msg
-    }
     
-    async fn send_to_driver(&self, msg: Message) {
+    async fn send_to_manager(&self, msg: Message) {
         let _ = self.tx_to_manager
             .send((self.socket_id.clone(), msg))
             .await;
     }
 
-    pub async fn receive_from_driver(&mut self) -> Option<RxManagerMsg> {
-        let msg = self.rx_from_manager.recv().await;
-
-        msg
-    }
-
     pub async fn run(mut self) {
+        let mut keepalive_timer = interval(Duration::from_secs(2));
         loop {
-            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-            //self.send_to_socket(Message::Ping).await;
-            if let Some(msg) = self.rx_from_manager.recv().await {
-                info!("peer:rx_from_manager: {:#?}", msg);
+            tokio::select! {
+                Some(msg) = self.rx_from_manager.recv() => {
+                    info!("peer:rx_from_manager: {:#?}", msg);
+                },
+                Some(msg) = self.rx_from_socket.recv() => {
+                    self.last_seen = Instant::now();
+                    info!("peer:rx_from_socket: {:#?}", msg);
+                },
+                _ = keepalive_timer.tick() => {
+                    self.send_to_socket(Message::Ping).await;
+                }
             }
 
             // send ping to socket
             // wait for message from socket
-            // if ping, send it to driver
+            // if ping, send it to manager
         }
     }
 }
