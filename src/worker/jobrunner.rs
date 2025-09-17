@@ -5,17 +5,19 @@ use std::collections::HashMap;
 
 use crate::lua::{self, TrahlRuntime};
 
-pub type JobResult = Result<(), String>;
-
 pub struct JobRunner {
     tx: mpsc::Sender<RunnerMessage>,
     rx: Option<mpsc::Receiver<RunnerMessage>>,
 }
 
-pub struct JobSpec {
-    pub script: String,
-    pub vars: Option<HashMap<String, String>>
+//todo remover daqui
+pub type JobResult = Result<(), String>;
+
+struct JobSpec {
+    script: String,
+    vars: Option<HashMap<String, String>>,
 }
+
 
 #[derive(Debug)]
 pub struct JobHandle {

@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 use tracing::info;
+use uuid::Uuid;
 
 use crate::master::peers::{PeerId, RxManagerMsg};
 use crate::rpc::Message;
@@ -11,12 +12,33 @@ use super::peers::TxManagerMsg;
 
 struct PeerInfo {
     tx: mpsc::Sender<RxManagerMsg>,
+    simultaneous_jobs: u8,
+    identifier: String,
+    state: PeerState,
+}
+
+enum PeerState {
+
+}
+
+pub type JobResult = Result<(), String>;
+
+struct JobSpec {
+    id: Uuid,
+    script: String,
+    vars: Option<HashMap<String, String>>,
+    result_tx: oneshot::Sender<JobResult>,
+    log_tx: mpsc::Sender<String>,
+    //tracing
+
 }
 
 pub struct TaskManager {
     rx_from_peer: mpsc::Receiver<TxManagerMsg>,
     rx_socket_events: mpsc::Receiver<SocketEvent>,
     peer_registry: HashMap<PeerId, PeerInfo>,
+// pending_jobs: VecDeque<JobSpec>
+// running_jobs: HashMap<Uuid, PeerId>
 }
 
 impl TaskManager {

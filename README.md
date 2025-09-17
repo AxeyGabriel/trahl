@@ -3,10 +3,14 @@ Distributed media transcoding
 
 todo
 Master:
-    Job discovery
-        inotify + manual/scheduled discovery
-        jobs dedup with heuristic hash
-    Job orchestration
+    Create a Job discovery thread which can discover files via
+        - inotify
+        - manual discovery
+        - scheduled discovery
+        * Jobs needs to be deduplicated, storing source filename in a database for future testing
+        Those "Jobs" need to be sent via a channel to task_manager
+
+
     Web view
     Job file server
 Worker:
