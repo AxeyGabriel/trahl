@@ -3,7 +3,7 @@ use tokio::task::{self, JoinHandle};
 use mlua::Lua;
 use std::collections::HashMap;
 
-use crate::lua;
+use crate::lua::{self, TrahlRuntime};
 
 pub type JobResult = Result<(), String>;
 
@@ -61,9 +61,16 @@ impl JobRunner {
             .take()
             .expect("JobSpanwer::run() can be called only once");
 
+
         let handle = tokio::spawn(async move {
             while let Some(msg) = rx.recv().await {
-                match lua::create_lua_context(msg.spec.vars.clone(), Some(msg.output_tx.clone())) {
+                let mut runtime = TrahlRuntime::new()
+                    .with_stdout(msg.output_tx);
+                if let Some(vars) = &msg.spec.vars {
+                    runtime = runtime.with_vars(vars.clone());
+                };
+
+                match runtime.build() {
                     Ok(lua) => {
                         let job = Job::new(
                             msg.spec,
