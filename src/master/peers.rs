@@ -1,4 +1,4 @@
-use tracing::info;
+use tracing::{info, warn};
 use std::time::Instant;
 use tokio::sync::mpsc;
 use tokio::time::{interval, Duration};
@@ -20,7 +20,7 @@ pub struct Peer {
     socket_id: PeerId,
     params: HelloMsg,
     last_seen: Instant,
-    handshake_state: Handshake,
+    state: State,
     tx_to_socket: mpsc::Sender<TxSocketMsg>,
     rx_from_socket: mpsc::Receiver<RxSocketMsg>,
     tx_to_manager: mpsc::Sender<TxManagerMsg>,
@@ -28,11 +28,9 @@ pub struct Peer {
 }
 
 #[derive(Debug)]
-enum Handshake {
-    Disconnected,
-    Discovered,
-    ConfigUpdateSent,
-    Ready,
+enum State {
+    NotReady,
+    Configured,
 }
 
 impl Peer {
@@ -46,7 +44,7 @@ impl Peer {
     ) -> Self {
         Peer {
             last_seen: Instant::now(),
-            handshake_state: Handshake::Disconnected,
+            state: State::NotReady,
             socket_id,
             params: hello,
             tx_to_socket,
@@ -73,20 +71,31 @@ impl Peer {
         loop {
             tokio::select! {
                 Some(msg) = self.rx_from_manager.recv() => {
-                    info!("peer:rx_from_manager: {:#?}", msg);
+                    self.message_from_manager(msg).await;
                 },
                 Some(msg) = self.rx_from_socket.recv() => {
                     self.last_seen = Instant::now();
-                    info!("peer:rx_from_socket: {:#?}", msg);
+                    self.message_from_socket(msg).await;
                 },
                 _ = keepalive_timer.tick() => {
                     self.send_to_socket(Message::Ping).await;
+
+                    if self.last_seen.elapsed() >= Duration::from_secs(5) {
+                        // Socket timed out, abort
+                        warn!("Peer {} timed out", self.params.identifier);
+                        self.send_to_socket(Message::Bye).await;
+                    }
                 }
             }
-
-            // send ping to socket
-            // wait for message from socket
-            // if ping, send it to manager
         }
+    }
+
+    async fn message_from_manager(&mut self, msg: RxManagerMsg) {
+        //todo: implement file transfers
+        self.send_to_socket(msg).await;
+    }
+    
+    async fn message_from_socket(&mut self, msg: RxSocketMsg) {
+        self.send_to_manager(msg).await;
     }
 }

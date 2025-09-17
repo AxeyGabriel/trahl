@@ -1,4 +1,3 @@
-use std::net::SocketAddr;
 use std::sync::Arc;
 use zeromq::{prelude::*};
 use tracing::{info, error};
@@ -132,7 +131,25 @@ impl SocketServer {
                 },
                 Some((peer_id, msg)) = rx_peer_to_sock.recv() => {
                     if let Err(e) = zmq_helper::send_msg(&mut router, Some(&peer_id), &msg).await {
-                        error!("Error sending message to peer: {}", e)
+                        error!("Disconnected failed peer: {}", e);
+
+                        if let Some(val) = self.peer_map
+                            .remove(&peer_id) {
+                            val.1.abort();
+                        }
+                        let _ = self.tx_event.send(SocketEvent::PeerDisconnected(
+                            peer_id.to_vec(),
+                        )).await;
+                    }
+
+                    if msg == Message::Bye {
+                        if let Some(val) = self.peer_map
+                            .remove(&peer_id) {
+                            val.1.abort();
+                        }
+                        let _ = self.tx_event.send(SocketEvent::PeerDisconnected(
+                            peer_id.to_vec(),
+                        )).await;
                     }
                 },
                 _ = ch_term.changed() => {
