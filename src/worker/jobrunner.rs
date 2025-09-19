@@ -13,7 +13,7 @@ pub struct JobRunner {
 //todo remover daqui
 pub type JobResult = Result<(), String>;
 
-struct JobSpec {
+pub struct JobSpec {
     script: String,
     vars: Option<HashMap<String, String>>,
 }

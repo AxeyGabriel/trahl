@@ -1,41 +1,44 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::mpsc;
-use tracing::info;
+use tracing::{info, warn};
 use uuid::Uuid;
 
 use crate::master::peers::{PeerId, RxManagerMsg};
+use crate::rpc::{TranscodeProgress, WorkerInfo};
 use super::MasterCtx;
 use super::socket_server::SocketEvent;
 use super::peers::TxManagerMsg;
+use crate::rpc::Message;
+use crate::rpc::JobStatus as RpcJobStatus;
 
-/* define a Job
- * Track running jobs -> tied to peer
- * have a queue of pending jobs
- * have a list of done jobs
- * have a list of failed jobs
- */
+fn uuid_to_u128(value: Uuid) -> u128 {
+    u128::from_be_bytes(*value.as_bytes())
+}
+
+fn u128_to_uuid(value: u128) -> Uuid {
+    Uuid::from_bytes(value.to_be_bytes())
+}
+
 struct PeerInfo {
-    tx: mpsc::Sender<RxManagerMsg>,
-    simultaneous_jobs: u8,
-    identifier: String,
-    state: PeerState,
+    tx: mpsc::Sender<RxManagerMsg>, // To send message to peer
+    info: WorkerInfo,
+    jobs: HashMap<Uuid, JobTracking>
 }
 
-enum PeerState {
-
+enum JobStatus {
+    Sent,
+    Acknowledged,
+    InProgress(TranscodeProgress),
+    Finished,
+    Failed(String),
+    Success,
 }
 
-pub type JobResult = Result<(), String>;
-
-struct JobSpec {
+struct JobTracking { 
     id: Uuid,
-    script: String,
-    vars: Option<HashMap<String, String>>,
-    result_tx: oneshot::Sender<JobResult>,
-    log_tx: mpsc::Sender<String>,
-    //tracing
-
+    log: Vec<String>,
+    status: JobStatus
 }
 
 pub struct JobManager {
@@ -64,9 +67,11 @@ impl JobManager {
 
         loop {
             tokio::select!(
-                msg = self.rx_from_peer.recv() => {
-                    if let Some(msg) = msg {
-                        info!("task_driver: {:#?}", msg);
+                Some((peer_id, msg)) = self.rx_from_peer.recv() => {
+                    if let Some(peer) = self.peer_registry.get_mut(&peer_id) {
+                        self.msg_from_peer(peer, msg);
+                    } else {
+                        warn!("Message received from unknown peer");
                     }
                 },
                 Some(event) = self.rx_socket_events.recv() => {
@@ -95,6 +100,39 @@ impl JobManager {
                     }
                 }
             );
+        }
+    }
+
+    async fn msg_from_peer(&mut self, peer: &mut PeerInfo, msg: Message) {
+        match msg {
+            Message::JobStatus(msg) => {
+                let job_id = &u128_to_uuid(msg.job_id);
+                if let Some(job_tracking) = peer.jobs.get_mut(job_id) {
+                    match msg.status {
+                        RpcJobStatus::Ack => {
+                            job_tracking.status = JobStatus::Acknowledged;
+                        },
+                        RpcJobStatus::Progress(p) => {
+                            job_tracking.status = JobStatus::InProgress(p);
+                        },
+                        RpcJobStatus::Log {line} => {
+                            job_tracking.log
+                                .push(line);
+                        },
+                        RpcJobStatus::Error {descr} => {
+                            job_tracking.status = JobStatus::Failed(descr);
+
+                        },
+                        RpcJobStatus::Done => {
+                            job_tracking.status = JobStatus::Success;
+                        }
+                    }
+                } else {
+                    warn!("Received updates for a unknown job");
+                }
+
+            },
+            _ => {}
         }
     }
 }

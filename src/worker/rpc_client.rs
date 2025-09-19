@@ -4,7 +4,7 @@ use zeromq::DealerSocket;
 use tracing::{info, error};
 use tokio::time::{sleep, Duration};
 
-use crate::rpc::HelloMsg;
+use crate::rpc::WorkerInfo;
 use crate::rpc::Message;
 use crate::rpc::zmq_helper;
 use super::WorkerCtx;
@@ -26,7 +26,7 @@ pub async fn rpc_client(ctx: Arc<WorkerCtx>) {
 
     info!("Connected to master at {}", master_addr);
 
-    let msg = Message::Hello(HelloMsg {
+    let msg = Message::Hello(WorkerInfo {
         identifier: "abc".to_string(),
         simultaneous_jobs: 2,
     });

@@ -5,7 +5,7 @@ use tokio::time::{interval, Duration};
 
 use crate::rpc::{
     Message,
-    HelloMsg,
+    WorkerInfo,
 };
 
 pub type PeerId = Vec<u8>;
@@ -18,7 +18,7 @@ pub type RxSocketMsg = Message;
 #[derive(Debug)]
 pub struct Peer {
     socket_id: PeerId,
-    params: HelloMsg,
+    params: WorkerInfo,
     last_seen: Instant,
     state: State,
     tx_to_socket: mpsc::Sender<TxSocketMsg>,
@@ -35,7 +35,7 @@ enum State {
 
 impl Peer {
     pub fn new(
-        hello: HelloMsg,
+        hello: WorkerInfo,
         socket_id: PeerId,
         tx_to_socket: mpsc::Sender<TxSocketMsg>,
         rx_from_socket: mpsc::Receiver<RxSocketMsg>,
