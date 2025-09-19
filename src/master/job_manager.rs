@@ -69,16 +69,18 @@ impl JobManager {
             tokio::select!(
                 Some((peer_id, msg)) = self.rx_from_peer.recv() => {
                     if let Some(peer) = self.peer_registry.get_mut(&peer_id) {
-                        self.msg_from_peer(peer, msg);
+                        msg_from_peer(peer, msg).await;
                     } else {
                         warn!("Message received from unknown peer");
                     }
                 },
                 Some(event) = self.rx_socket_events.recv() => {
                     match event {
-                        SocketEvent::PeerConnected(peer_id, tx) => {
+                        SocketEvent::PeerConnected(peer_id, tx, info) => {
                             let peer_info = PeerInfo {
-                                tx
+                                tx,
+                                info,
+                                jobs: HashMap::new(),
                             };
                             self.peer_registry
                                 .insert(peer_id, peer_info);
@@ -102,38 +104,37 @@ impl JobManager {
             );
         }
     }
-
-    async fn msg_from_peer(&mut self, peer: &mut PeerInfo, msg: Message) {
-        match msg {
-            Message::JobStatus(msg) => {
-                let job_id = &u128_to_uuid(msg.job_id);
-                if let Some(job_tracking) = peer.jobs.get_mut(job_id) {
-                    match msg.status {
-                        RpcJobStatus::Ack => {
-                            job_tracking.status = JobStatus::Acknowledged;
-                        },
-                        RpcJobStatus::Progress(p) => {
-                            job_tracking.status = JobStatus::InProgress(p);
-                        },
-                        RpcJobStatus::Log {line} => {
-                            job_tracking.log
-                                .push(line);
-                        },
-                        RpcJobStatus::Error {descr} => {
-                            job_tracking.status = JobStatus::Failed(descr);
-
-                        },
-                        RpcJobStatus::Done => {
-                            job_tracking.status = JobStatus::Success;
-                        }
-                    }
-                } else {
-                    warn!("Received updates for a unknown job");
-                }
-
-            },
-            _ => {}
-        }
-    }
 }
 
+async fn msg_from_peer(peer: &mut PeerInfo, msg: Message) {
+    match msg {
+        Message::JobStatus(msg) => {
+            let job_id = &u128_to_uuid(msg.job_id);
+            if let Some(job_tracking) = peer.jobs.get_mut(job_id) {
+                match msg.status {
+                    RpcJobStatus::Ack => {
+                        job_tracking.status = JobStatus::Acknowledged;
+                    },
+                    RpcJobStatus::Progress(p) => {
+                        job_tracking.status = JobStatus::InProgress(p);
+                    },
+                    RpcJobStatus::Log {line} => {
+                        job_tracking.log
+                            .push(line);
+                    },
+                    RpcJobStatus::Error {descr} => {
+                        job_tracking.status = JobStatus::Failed(descr);
+
+                    },
+                    RpcJobStatus::Done => {
+                        job_tracking.status = JobStatus::Success;
+                    }
+                }
+            } else {
+                warn!("Received updates for a unknown job");
+            }
+
+        },
+        _ => {}
+    }
+}

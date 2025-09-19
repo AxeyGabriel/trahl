@@ -6,6 +6,7 @@ use tokio::task::JoinHandle;
 use tokio;
 use std::collections::HashMap;
 
+use crate::rpc::WorkerInfo;
 use crate::rpc::{
     zmq_helper,
     Message,
@@ -17,7 +18,7 @@ const CHANNEL_BUFFER_SIZE: usize = 64;
 
 #[derive(Debug, Clone)]
 pub enum SocketEvent {
-    PeerConnected(PeerId, mpsc::Sender<RxManagerMsg>),
+    PeerConnected(PeerId, mpsc::Sender<RxManagerMsg>, WorkerInfo),
     PeerDisconnected(PeerId),
 }
 
@@ -100,6 +101,7 @@ impl SocketServer {
                                         let _ = self.tx_event.send(SocketEvent::PeerConnected(
                                             peer_id.to_vec(),
                                             tx_manager_to_peer,
+                                            hm,
                                         )).await;
                                     }
                                 }

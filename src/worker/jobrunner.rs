@@ -14,8 +14,8 @@ pub struct JobRunner {
 pub type JobResult = Result<(), String>;
 
 pub struct JobSpec {
-    script: String,
-    vars: Option<HashMap<String, String>>,
+    pub script: String,
+    pub vars: Option<HashMap<String, String>>,
 }
 
 
