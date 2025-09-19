@@ -5,11 +5,16 @@ use tracing::info;
 use uuid::Uuid;
 
 use crate::master::peers::{PeerId, RxManagerMsg};
-use crate::rpc::Message;
 use super::MasterCtx;
 use super::socket_server::SocketEvent;
 use super::peers::TxManagerMsg;
 
+/* define a Job
+ * Track running jobs -> tied to peer
+ * have a queue of pending jobs
+ * have a list of done jobs
+ * have a list of failed jobs
+ */
 struct PeerInfo {
     tx: mpsc::Sender<RxManagerMsg>,
     simultaneous_jobs: u8,
@@ -33,7 +38,7 @@ struct JobSpec {
 
 }
 
-pub struct TaskManager {
+pub struct JobManager {
     rx_from_peer: mpsc::Receiver<TxManagerMsg>,
     rx_socket_events: mpsc::Receiver<SocketEvent>,
     peer_registry: HashMap<PeerId, PeerInfo>,
@@ -41,7 +46,7 @@ pub struct TaskManager {
 // running_jobs: HashMap<Uuid, PeerId>
 }
 
-impl TaskManager {
+impl JobManager {
     pub fn new(
         rx_from_peer: mpsc::Receiver<TxManagerMsg>,
         rx_socket_events: mpsc::Receiver<SocketEvent>,

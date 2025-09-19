@@ -2,7 +2,7 @@ mod web;
 mod file_watcher;
 mod socket_server;
 mod peers;
-mod task_manager;
+mod job_manager;
 
 use tracing::{error, info};
 use std::sync::atomic::Ordering;
@@ -17,10 +17,9 @@ use socket_server::SocketEvent;
 
 use web::web_service;
 use socket_server::SocketServer;
-use task_manager::TaskManager;
+use job_manager::JobManager;
 use crate::config::SystemConfig;
 use crate::master::peers::TxManagerMsg;
-use crate::rpc::Message;
 use crate::{CONFIG, S_TERMINATE, S_RELOAD};
 
 pub struct MasterCtx {
@@ -61,7 +60,7 @@ async fn master_runtime() {
         rx_socketserver
     ) = mpsc::channel::<SocketEvent>(8);
     
-    let task_manager = TaskManager::new(
+    let job_manager = JobManager::new(
         rx_manager,
         rx_socketserver,
     );
@@ -74,14 +73,14 @@ async fn master_runtime() {
     let _ = tokio::join!(
         tokio::spawn(web_service(ctx.clone())),
         tokio::spawn(socket_server.run(ctx.clone())),
-        tokio::spawn(task_manager.run(ctx.clone())),
-        task_propagate_signals(ctx.clone()),
+        tokio::spawn(job_manager.run(ctx.clone())),
+        job_propagate_signals(ctx.clone()),
     );
 
     info!("Master terminated");
 }
 
-async fn task_propagate_signals(ctx: Arc<MasterCtx>) {
+async fn job_propagate_signals(ctx: Arc<MasterCtx>) {
     loop {
         let s_term = S_TERMINATE
             .get()
