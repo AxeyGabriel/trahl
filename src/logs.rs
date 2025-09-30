@@ -25,7 +25,7 @@ fn init_log_to_file(env_filter: EnvFilter, log_config: &LogConfig) -> Option<Wor
 fn init_log_to_stdout(env_filter: EnvFilter, _log_config: &LogConfig) -> Option<WorkerGuard> {
     let subscriber = fmt()
         .with_env_filter(env_filter)
-        .with_thread_names(true)
+        .with_thread_names(false)
         .with_ansi(true)
         .with_target(true)
         .finish();

@@ -81,7 +81,12 @@ async fn master_runtime() {
 
     let str_f = PathBuf::from("/home/axey/trahl/test-resources/red_320x240_h264_1s.mp4");
     let script_p = PathBuf::from("/home/axey/trahl/test-resources/test.lua");
+    
+    let str_f_2 = PathBuf::from("/home/axey/trahl/test-resources/red_320x240_h264_1s.mp4");
+    let script_p_2 = PathBuf::from("/home/axey/trahl/test-resources/test2.lua");
+    
     _ = tx_jobs.send(JobContract::new(str_f, HashMap::new(), script_p)).await;
+    _ = tx_jobs.send(JobContract::new(str_f_2, HashMap::new(), script_p_2)).await;
 
     let _ = tokio::join!(
         tokio::spawn(web_service(ctx.clone())),

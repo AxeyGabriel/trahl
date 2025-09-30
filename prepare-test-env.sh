@@ -24,3 +24,11 @@ cat > "$TARGET_DIR/test.lua" <<EOF
 _trahl.log(_trahl.INFO, "Hello World from Lua")
 EOF
 
+cat > "$TARGET_DIR/test2.lua" <<EOF
+for i = 1, 10 do
+	_trahl.log(_trahl.INFO, "Count is " .. i)
+	_trahl.delay_msec(1000)
+end
+EOF
+
+
