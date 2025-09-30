@@ -27,7 +27,7 @@ EOF
 cat > "$TARGET_DIR/test2.lua" <<EOF
 for i = 1, 10 do
 	_trahl.log(_trahl.INFO, "Count is " .. i)
-	_trahl.delay_msec(1000)
+	s_trahl.delay_msec(1000)
 end
 EOF
 

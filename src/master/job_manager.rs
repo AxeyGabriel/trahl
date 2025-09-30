@@ -179,7 +179,7 @@ async fn msg_from_peer(peer: &mut PeerInfo, msg: Message) {
                             .push(line);
                     },
                     RpcJobStatus::Error {descr} => {
-                        info!("Job {} failed on worker {}", msg.job_id, peer.info.identifier);
+                        info!("Job {} failed on worker {}: {}", msg.job_id, peer.info.identifier, descr);
                         job_tracking.status = JobStatus::Failed(descr);
 
                     },

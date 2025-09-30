@@ -99,20 +99,20 @@ impl Job {
             Ok(_) => {
                 info!("Job {} finished", self.spec.job_id);
 
-                if let Err(e) = self.status_tx.send(JobStatusMsg {
+                if let Err(se) = self.status_tx.send(JobStatusMsg {
                     job_id: self.spec.job_id,
                     status: JobStatus::Done,
                 }).await {
-                    error!("Error while sending message: {}", e);
+                    error!("Error while sending message: {}", se);
                 }
             }
             Err(e) => {
-                error!("Job {} failed", self.spec.job_id);
-                if let Err(e) = self.status_tx.send(JobStatusMsg {
+                error!("Job {} failed: {}", self.spec.job_id, e);
+                if let Err(se) = self.status_tx.send(JobStatusMsg {
                     job_id: self.spec.job_id,
                     status: JobStatus::Error{ descr: e.to_string() },
                 }).await {
-                    error!("Error while sending message: {}", e);
+                    error!("Error while sending message: {}", se);
                 }
             }
         }
