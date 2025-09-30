@@ -19,6 +19,7 @@ use time::{
 };
 use media::{
     _ffprobe,
+    _ffmpeg,
 };
 
 use crate::rpc::{JobStatusMsg, JobStatus};
@@ -169,6 +170,7 @@ impl TrahlRuntime {
         let ffi_from_json = luactx.create_function(_from_json)?;
         let ffi_time = luactx.create_function(_time)?;
         let ffi_ffprobe = luactx.create_async_function(_ffprobe)?;
+        let ffi_ffmpeg = luactx.create_async_function(_ffmpeg)?;
 
         table.set("INFO", 1)?;
         table.set("WARN", 2)?;
@@ -181,6 +183,7 @@ impl TrahlRuntime {
         table.set("from_json", ffi_from_json)?;
         table.set("time", ffi_time)?;
         table.set("ffprobe", ffi_ffprobe)?;
+        table.set("ffmpeg", ffi_ffmpeg)?;
 
         Ok(())
     }

@@ -79,14 +79,22 @@ async fn master_runtime() {
         tx_socketserver,
     );
 
-    let str_f = PathBuf::from("/home/axey/trahl/test-resources/red_320x240_h264_1s.mp4");
+/*    let str_f = PathBuf::from("/home/axey/trahl/test-resources/red_320x240_h264_1s.mp4");
     let script_p = PathBuf::from("/home/axey/trahl/test-resources/test.lua");
     
     let str_f_2 = PathBuf::from("/home/axey/trahl/test-resources/red_320x240_h264_1s.mp4");
-    let script_p_2 = PathBuf::from("/home/axey/trahl/test-resources/test2.lua");
+    let script_p_2 = PathBuf::from("/home/axey/trahl/test-resources/test2.lua");*/
     
-    _ = tx_jobs.send(JobContract::new(str_f, HashMap::new(), script_p)).await;
-    _ = tx_jobs.send(JobContract::new(str_f_2, HashMap::new(), script_p_2)).await;
+    let str_f_3 = PathBuf::from("/home/axey/trahl/test-resources/red_320x240_h264_1s.mp4");
+    let script_p_3 = PathBuf::from("/home/axey/trahl/test-resources/test_transcode.lua");
+    
+    let str_f_4 = PathBuf::from("/home/axey/trahl/test-resources/red_320x240_h265_1s.mp4");
+    let script_p_4 = PathBuf::from("/home/axey/trahl/test-resources/test_transcode.lua");
+    
+//    _ = tx_jobs.send(JobContract::new(str_f, HashMap::new(), script_p)).await;
+//    _ = tx_jobs.send(JobContract::new(str_f_2, HashMap::new(), script_p_2)).await;
+    _ = tx_jobs.send(JobContract::new(str_f_3, HashMap::new(), script_p_3)).await;
+    _ = tx_jobs.send(JobContract::new(str_f_4, HashMap::new(), script_p_4)).await;
 
     let _ = tokio::join!(
         tokio::spawn(web_service(ctx.clone())),

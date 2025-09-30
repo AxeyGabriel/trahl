@@ -1,4 +1,4 @@
-use mlua::{Error, Lua, LuaSerdeExt, Result, Value};
+use mlua::{Error, Lua, LuaSerdeExt, Result, Table, Value};
 use std::path::PathBuf;
 
 use crate::extcmd::ffprobe::ffprobe;
@@ -11,6 +11,10 @@ pub async fn _ffprobe(luactx: Lua, mediapath: String) -> Result<Value> {
         .map_err(Error::external)?;
 
     luactx.to_value(&json)
+}
+
+pub async fn _ffmpeg(luactx: Lua, args: Table) -> Result<Value> {
+    todo!()
 }
 
 #[cfg(test)]

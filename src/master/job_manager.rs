@@ -29,6 +29,18 @@ struct PeerInfo {
     jobs: HashMap<Uuid, JobTracking>
 }
 
+impl PeerInfo {
+    fn active_job_count(&self) -> usize {
+        self.jobs
+            .values()
+            .filter(|j| matches!(
+                j.status,
+                JobStatus::Sent | JobStatus::Acknowledged | JobStatus::InProgress(_)
+            ))
+            .count()
+    }
+}
+
 enum JobStatus {
     Sent,
     Acknowledged,
@@ -94,12 +106,12 @@ impl JobManager {
                     if let Some(mut job) = self.pending_jobs.pop_front() {
                         let selected_peer = self.peer_registry
                             .iter_mut()
-                            .filter(|(_, p)| p.jobs.len() < p.info.simultaneous_jobs.into())
-                            .min_by_key(|(_, p)| p.jobs.len());
+                            .filter(|(_, p)| p.active_job_count() < p.info.simultaneous_jobs.into())
+                            .min_by_key(|(_, p)| p.active_job_count());
 
                         if let Some((_id, peer)) = selected_peer {
                             let script = tokio::fs::read_to_string(job.script_path).await.unwrap();
-                            job.vars.insert("_SRCFILE".to_string(), job.src_file.into_os_string().to_string_lossy().into_owned());
+                            job.vars.insert("SRCFILE".to_string(), job.src_file.into_os_string().to_string_lossy().into_owned());
                             let jobmsg = JobMsg {
                                 job_id: uuid_to_u128(job.id),
                                 script: script,

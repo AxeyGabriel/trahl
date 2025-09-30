@@ -27,8 +27,25 @@ EOF
 cat > "$TARGET_DIR/test2.lua" <<EOF
 for i = 1, 10 do
 	_trahl.log(_trahl.INFO, "Count is " .. i)
-	s_trahl.delay_msec(1000)
+	_trahl.delay_msec(1000)
 end
 EOF
 
+cat > "$TARGET_DIR/test_transcode.lua" <<EOF
+local util = require("util")
+local srcfile = _trahl.vars.SRCFILE
+local size = util.file_size(srcfile)
+local wh = "https://discord.com/api/webhooks/1422425509999935583/h5mDwqjxXW59abMokj1_mOCO2INiFfeEdYixKgknVl_He2N3XxhX2muZQvZu_qQakjtw"
 
+_trahl.log(_trahl.INFO, "filename: " .. srcfile .. " size: " .. size .. " bytes")
+
+local probe = _trahl.ffprobe(srcfile)
+local codec = probe.streams[1].codec_long_name or ""
+if codec:lower():find("hevc") or codec:lower():find("h.265") then
+	_trahl.log(_trahl.INFO, "Codec is H.265")
+	util.discord_message(wh, "Hello From Lua")
+	return
+else
+	_trahl.log(_trahl.INFO, "Codec is not H.265")
+end
+EOF
