@@ -56,11 +56,11 @@ pub enum JobStatus {
 
 #[derive(Debug, Encode, Decode, Clone, PartialEq)]
 pub struct TranscodeProgress {
-    frame: Option<u64>,
-    fps: Option<f64>,
-    cur_time: Option<Duration>,
-    percentage: Option<f64>,
-    eta: Option<Duration>,
+    pub frame: Option<u64>,
+    pub fps: Option<u64>,
+    pub cur_time: Option<Duration>,
+    pub percentage: Option<f64>,
+    pub eta: Option<Duration>,
 }
 
 /*

@@ -24,8 +24,8 @@ use media::{
 
 use crate::rpc::{JobStatusMsg, JobStatus};
 
-struct OutChannelWrapper {
-    tx: mpsc::Sender<JobStatusMsg>,
+pub struct OutChannelWrapper {
+    pub tx: mpsc::Sender<JobStatusMsg>,
 }
 impl UserData for OutChannelWrapper {}
 

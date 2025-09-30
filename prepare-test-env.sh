@@ -13,7 +13,7 @@ rm -rf "$TARGET_DIR"
 mkdir "$TARGET_DIR"
 
 # Create sample media files
-$FFMPEG -y -f lavfi -i color=c=red:s=320x240:d=1 -c:v h264 -t 1 "$TARGET_DIR/red_320x240_h264_1s.mp4"
+$FFMPEG -y -f lavfi -i color=c=red:s=320x240:d=600 -c:v h264 -t 1 "$TARGET_DIR/red_320x240_h264_1s.mp4"
 $FFMPEG -y -f lavfi -i color=c=red:s=320x240:d=1 -c:v libx265 -t 1 "$TARGET_DIR/red_320x240_h265_1s.mp4"
 
 # Create known sized files
@@ -39,6 +39,14 @@ local wh = "https://discord.com/api/webhooks/1422425509999935583/h5mDwqjxXW59abM
 
 _trahl.log(_trahl.INFO, "filename: " .. srcfile .. " size: " .. size .. " bytes")
 
+local args = {
+	"-i", srcfile,
+	"-c:v", "libx265",
+	"-preset", "medium",
+	"-crf", "28",
+	"out.mkv"
+}
+
 local probe = _trahl.ffprobe(srcfile)
 local codec = probe.streams[1].codec_long_name or ""
 if codec:lower():find("hevc") or codec:lower():find("h.265") then
@@ -47,5 +55,7 @@ if codec:lower():find("hevc") or codec:lower():find("h.265") then
 	return
 else
 	_trahl.log(_trahl.INFO, "Codec is not H.265")
+
+	_trahl.ffmpeg(args)
 end
 EOF
