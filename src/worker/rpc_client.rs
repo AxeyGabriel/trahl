@@ -14,12 +14,15 @@ pub async fn rpc_client(
     mut rx: mpsc::Receiver::<Message>,
     tx: mpsc::Sender::<Message>,
 ) {
-    let master_addr = format!("tcp://{}",
-        &ctx.config
+    let worker_config = {
+        let cfg = &ctx.config
         .read()
-        .unwrap()
-        .worker
-        .master_addr);
+        .unwrap();
+        cfg.worker.clone()
+    };
+
+    let master_addr = format!("tcp://{}",
+        worker_config.master_addr);
 
     let mut socket = DealerSocket::new();
     if let Err(e) = socket.connect(&master_addr).await {
@@ -31,9 +34,10 @@ pub async fn rpc_client(
     info!("Connected to master at {}", master_addr);
 
     let msg = Message::Hello(WorkerInfo {
-        identifier: "abc".to_string(),
-        simultaneous_jobs: 2,
+        identifier: worker_config.identifier,
+        simultaneous_jobs: worker_config.parallel_jobs,
     });
+
     match zmq_helper::send_msg(
             &mut socket,
             None,

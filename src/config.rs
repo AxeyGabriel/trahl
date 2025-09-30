@@ -6,14 +6,14 @@ use std::fs;
 use toml;
 
 #[cfg_attr(test, derive(PartialEq, Eq))]
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct FsRemap {
     pub master: String,
     pub worker: String,
 }
 
 #[cfg_attr(test, derive(PartialEq, Eq))]
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct MasterConfig {
     pub orch_bind_addr: SocketAddr,
@@ -21,7 +21,7 @@ pub struct MasterConfig {
 }
 
 #[cfg_attr(test, derive(PartialEq, Eq))]
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct JobConfig {
     pub name: String,
     pub enabled: bool,
@@ -34,12 +34,13 @@ pub struct JobConfig {
 }
 
 #[cfg_attr(test, derive(PartialEq, Eq))]
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct WorkerConfig {
     pub identifier: String,
     pub master_addr: SocketAddr,
     pub fs_remaps: Option<Vec<FsRemap>>,
+    pub parallel_jobs: u8,
     pub cache_dir: PathBuf,
     pub handbrake_path: PathBuf,
     pub ffmpeg_path: PathBuf,
@@ -51,14 +52,14 @@ pub struct WorkerConfig {
 }
 
 #[cfg_attr(test, derive(PartialEq, Eq))]
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct LogConfig {
     pub level: String,
     pub file: Option<PathBuf>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct SystemConfig {
     #[serde(default)]
     pub master: MasterConfig,
@@ -77,6 +78,7 @@ impl Default for WorkerConfig {
             master_addr: "127.0.0.1:1849".parse().expect("Error setting master_addr"),
             fs_remaps: None,
             cache_dir: PathBuf::from("./trahl-cache"),
+            parallel_jobs: 1,
             handbrake_path: PathBuf::from("handbrake"),
             ffmpeg_path: PathBuf::from("ffmpeg"),
             exiftool_path: PathBuf::from("exiftool"),

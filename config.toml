@@ -13,7 +13,8 @@ orch_bind_addr = "127.0.0.1:8245"
 
 [worker]
 master_addr = "127.0.0.1:8245"
-worker_name = "test-worker"
+identifier = "test-worker"
+cache_dir = "/tmp"
 
 [log]
 level = "debug"
