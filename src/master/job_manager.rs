@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::time::{interval, Duration};
 use tokio::sync::mpsc;
-use tracing::{info, warn};
+use tracing::{info, warn, error, debug};
 use uuid::Uuid;
 
 use crate::master::peers::{PeerId, RxManagerMsg};
@@ -178,20 +178,20 @@ async fn msg_from_peer(peer: &mut PeerInfo, msg: Message) {
             if let Some(job_tracking) = peer.jobs.get_mut(job_id) {
                 match msg.status {
                     RpcJobStatus::Ack => {
-                        info!("Job {} ack on worker {}", msg.job_id, peer.info.identifier);
+                        debug!("Job {} ack on worker {}", msg.job_id, peer.info.identifier);
                         job_tracking.status = JobStatus::Acknowledged;
                     },
                     RpcJobStatus::Progress(p) => {
-                        info!("Job {} progress: {:#?}", msg.job_id, p);
+                        debug!("Job {} progress: {:#?}", msg.job_id, p);
                         job_tracking.status = JobStatus::InProgress(p);
                     },
                     RpcJobStatus::Log {line} => {
-                        info!("Job {} log: {}", msg.job_id, line);
+                        debug!("Job {} log: {}", msg.job_id, line);
                         job_tracking.log
                             .push(line);
                     },
                     RpcJobStatus::Error {descr} => {
-                        info!("Job {} failed on worker {}: {}", msg.job_id, peer.info.identifier, descr);
+                        error!("Job {} failed on worker {}: {}", msg.job_id, peer.info.identifier, descr);
                         job_tracking.status = JobStatus::Failed(descr);
 
                     },
