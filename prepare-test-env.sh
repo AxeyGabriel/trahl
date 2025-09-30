@@ -18,3 +18,9 @@ $FFMPEG -y -f lavfi -i color=c=red:s=320x240:d=1 -c:v libx265 -t 1 "$TARGET_DIR/
 
 # Create known sized files
 $DD if=/dev/urandom of="$TARGET_DIR/100_bytes_file.bin" bs=1 count=100
+
+# Create test lua script
+cat > "$TARGET_DIR/test.lua" <<EOF
+_trahl.log(_trahl.INFO, "Hello World from Lua")
+EOF
+

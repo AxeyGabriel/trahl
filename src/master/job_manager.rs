@@ -1,5 +1,7 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
+use std::path::PathBuf;
 use std::sync::Arc;
+use tokio::time::{interval, Duration};
 use tokio::sync::mpsc;
 use tracing::{info, warn};
 use uuid::Uuid;
@@ -11,6 +13,7 @@ use super::socket_server::SocketEvent;
 use super::peers::TxManagerMsg;
 use crate::rpc::Message;
 use crate::rpc::JobStatus as RpcJobStatus;
+use crate::rpc::JobMsg;
 
 fn uuid_to_u128(value: Uuid) -> u128 {
     u128::from_be_bytes(*value.as_bytes())
@@ -30,43 +33,93 @@ enum JobStatus {
     Sent,
     Acknowledged,
     InProgress(TranscodeProgress),
-    Finished,
     Failed(String),
     Success,
 }
 
 struct JobTracking { 
-    id: Uuid,
     log: Vec<String>,
     status: JobStatus
+}
+
+pub struct JobContract {
+    id: Uuid,
+    src_file: PathBuf,
+    vars: HashMap<String, String>,
+    script_path: PathBuf,
+}
+
+impl JobContract {
+    pub fn new(src_file: PathBuf, vars: HashMap<String, String>, script_path: PathBuf) -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            src_file,
+            vars,
+            script_path,
+        }
+    }
 }
 
 pub struct JobManager {
     rx_from_peer: mpsc::Receiver<TxManagerMsg>,
     rx_socket_events: mpsc::Receiver<SocketEvent>,
     peer_registry: HashMap<PeerId, PeerInfo>,
-// pending_jobs: VecDeque<JobSpec>
-// running_jobs: HashMap<Uuid, PeerId>
+    rx_job: mpsc::Receiver<JobContract>,
+    pending_jobs: VecDeque<JobContract>
 }
 
 impl JobManager {
     pub fn new(
         rx_from_peer: mpsc::Receiver<TxManagerMsg>,
         rx_socket_events: mpsc::Receiver<SocketEvent>,
+        rx_job: mpsc::Receiver<JobContract>
     ) -> Self {
         Self {
             rx_from_peer,
             rx_socket_events,
             peer_registry: HashMap::new(),
+            pending_jobs: VecDeque::new(),
+            rx_job,
         }
     }
 
     pub async fn run(mut self, ctx: Arc<MasterCtx>) {
         let mut ch_term = ctx.ch_terminate.1.clone();
         let mut ch_reload = ctx.ch_reload.1.clone();
+        let mut dispatch_timer = interval(Duration::from_secs(1));
 
         loop {
             tokio::select!(
+                _ = dispatch_timer.tick() => {
+                    if let Some(mut job) = self.pending_jobs.pop_front() {
+                        let selected_peer = self.peer_registry
+                            .iter_mut()
+                            .filter(|(_, p)| p.jobs.len() < p.info.simultaneous_jobs.into())
+                            .min_by_key(|(_, p)| p.jobs.len());
+
+                        if let Some((_id, peer)) = selected_peer {
+                            let script = tokio::fs::read_to_string(job.script_path).await.unwrap();
+                            job.vars.insert("_SRCFILE".to_string(), job.src_file.into_os_string().to_string_lossy().into_owned());
+                            let jobmsg = JobMsg {
+                                job_id: uuid_to_u128(job.id),
+                                script: script,
+                                vars: job.vars,
+                            };
+
+                            info!("Sent job id {} to worker {}", jobmsg.job_id, peer.info.identifier);
+                            
+                            let msg = Message::Job(jobmsg); 
+                            _ = peer.tx.send(msg).await;
+
+                            peer.jobs.insert(job.id, JobTracking { log: Vec::new(), status: JobStatus::Sent });
+                        } else {
+                            self.pending_jobs.push_front(job);
+                        }
+                    }
+                },
+                Some(job) = self.rx_job.recv() => {
+                    self.pending_jobs.push_back(job);
+                },
                 Some((peer_id, msg)) = self.rx_from_peer.recv() => {
                     if let Some(peer) = self.peer_registry.get_mut(&peer_id) {
                         msg_from_peer(peer, msg).await;
@@ -113,25 +166,31 @@ async fn msg_from_peer(peer: &mut PeerInfo, msg: Message) {
             if let Some(job_tracking) = peer.jobs.get_mut(job_id) {
                 match msg.status {
                     RpcJobStatus::Ack => {
+                        info!("Job {} ack on worker {}", msg.job_id, peer.info.identifier);
                         job_tracking.status = JobStatus::Acknowledged;
                     },
                     RpcJobStatus::Progress(p) => {
+                        info!("Job {} progress: {:#?}", msg.job_id, p);
                         job_tracking.status = JobStatus::InProgress(p);
                     },
                     RpcJobStatus::Log {line} => {
+                        info!("Job {} log: {}", msg.job_id, line);
                         job_tracking.log
                             .push(line);
                     },
                     RpcJobStatus::Error {descr} => {
+                        info!("Job {} failed on worker {}", msg.job_id, peer.info.identifier);
                         job_tracking.status = JobStatus::Failed(descr);
 
                     },
                     RpcJobStatus::Done => {
+                        info!("Job {} completed successfuly on worker {}", msg.job_id, peer.info.identifier);
                         job_tracking.status = JobStatus::Success;
-                    }
+                    },
+                    _ => {}
                 }
             } else {
-                warn!("Received updates for a unknown job");
+                warn!("Received updates for a unknown job: {}", msg.job_id);
             }
 
         },

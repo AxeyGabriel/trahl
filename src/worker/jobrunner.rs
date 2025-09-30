@@ -1,52 +1,19 @@
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::mpsc;
 use tokio::task::{self, JoinHandle};
 use mlua::Lua;
-use std::collections::HashMap;
+use tracing::{info, error};
 
-use crate::lua::{self, TrahlRuntime};
+use crate::lua::TrahlRuntime;
+use crate::rpc::{JobMsg, JobStatus, JobStatusMsg};
+
+struct RunnerMessage {
+    status_tx: mpsc::Sender::<JobStatusMsg>,
+    spec: JobMsg,
+}
 
 pub struct JobRunner {
     tx: mpsc::Sender<RunnerMessage>,
     rx: Option<mpsc::Receiver<RunnerMessage>>,
-}
-
-//todo remover daqui
-pub type JobResult = Result<(), String>;
-
-pub struct JobSpec {
-    pub script: String,
-    pub vars: Option<HashMap<String, String>>,
-}
-
-
-#[derive(Debug)]
-pub struct JobHandle {
-    pub result_rx: oneshot::Receiver<JobResult>,
-    pub output_rx: mpsc::Receiver<String>,
-}
-
-struct RunnerMessage {
-    spec: JobSpec,
-    result_tx: oneshot::Sender<JobResult>,
-    output_tx: mpsc::Sender<String>,
-}
-
-pub struct Job {
-    spec: JobSpec,
-    luactx: Lua,
-    result_tx: oneshot::Sender<JobResult>,
-}
-
-impl JobHandle {
-    pub async fn await_result(self) -> JobResult {
-        self.result_rx
-            .await
-            .unwrap_or_else(|_| Err("Job cancelled".into()))
-    }
-
-    pub fn stdout_stream(&mut self) -> &mut mpsc::Receiver<String> {
-        &mut self.output_rx
-    }
 }
 
 impl JobRunner {
@@ -66,25 +33,26 @@ impl JobRunner {
 
         let handle = tokio::spawn(async move {
             while let Some(msg) = rx.recv().await {
-                let mut runtime = TrahlRuntime::new()
-                    .with_stdout(msg.output_tx);
-                if let Some(vars) = &msg.spec.vars {
-                    runtime = runtime.with_vars(vars.clone());
-                };
+                let mut runtime = TrahlRuntime::new(msg.spec.job_id)
+                    .with_stdout(msg.status_tx.clone());
+                runtime = runtime.with_vars(msg.spec.vars.clone());
 
                 match runtime.build() {
                     Ok(lua) => {
                         let job = Job::new(
                             msg.spec,
                             lua,
-                            msg.result_tx,
+                            msg.status_tx.clone(),
                         );
                         task::spawn(job.run());
-                    }
+                    },
                     Err(e) => {
-                        let _ = msg.result_tx.send(Err(
-                            format!("Failed to create lua context: {}", e)
-                        ));
+                        let _ = msg.status_tx.send(JobStatusMsg {
+                            job_id: msg.spec.job_id,
+                            status: JobStatus::Error {
+                                descr: format!("Failed to create lua context: {}", e),
+                            },
+                        });
                     }
                 }
             }
@@ -93,34 +61,31 @@ impl JobRunner {
         (self, handle)
     }
     
-    pub async fn spawn_job(&self, spec: JobSpec) -> JobHandle {
-        let (result_tx, result_rx) = oneshot::channel();
-        let (output_tx, output_rx) = mpsc::channel(32);
-
+    pub async fn spawn_job(&self, spec: JobMsg, status_tx: mpsc::Sender<JobStatusMsg>) {
         let msg = RunnerMessage { 
             spec,
-            result_tx,
-            output_tx,
+            status_tx,
         };
 
         let _ = self.tx.send(msg).await.map_err(|_| "Runner closed");
-
-        JobHandle {
-            result_rx,
-            output_rx,
-        }
     }
 }
 
+struct Job {
+    spec: JobMsg,
+    luactx: Lua,
+    status_tx: mpsc::Sender<JobStatusMsg>,
+}
+
 impl Job {
-    fn new(spec: JobSpec,
+    fn new(spec: JobMsg,
             luactx: Lua,
-            result_tx: oneshot::Sender<JobResult>,
+            status_tx: mpsc::Sender<JobStatusMsg>,
         ) -> Self {
         Job {
             spec,
             luactx,
-            result_tx,
+            status_tx,
         }
     }
 
@@ -132,12 +97,24 @@ impl Job {
 
         match res {
             Ok(_) => {
-                let _ = self.result_tx.send(Ok(()));
+                info!("Job {} finished", self.spec.job_id);
+
+                if let Err(e) = self.status_tx.send(JobStatusMsg {
+                    job_id: self.spec.job_id,
+                    status: JobStatus::Done,
+                }).await {
+                    error!("Error while sending message: {}", e);
+                }
             }
             Err(e) => {
-                let _ = self.result_tx.send(Err(e.to_string()));
+                error!("Job {} failed", self.spec.job_id);
+                if let Err(e) = self.status_tx.send(JobStatusMsg {
+                    job_id: self.spec.job_id,
+                    status: JobStatus::Error{ descr: e.to_string() },
+                }).await {
+                    error!("Error while sending message: {}", e);
+                }
             }
         }
     }
 }
-

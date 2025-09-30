@@ -5,6 +5,8 @@ mod peers;
 mod job_manager;
 
 use tracing::{error, info};
+use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::atomic::Ordering;
 use tokio;
 use tokio::sync::{mpsc, watch};
@@ -19,6 +21,7 @@ use web::web_service;
 use socket_server::SocketServer;
 use job_manager::JobManager;
 use crate::config::SystemConfig;
+use crate::master::job_manager::JobContract;
 use crate::master::peers::TxManagerMsg;
 use crate::{CONFIG, S_TERMINATE, S_RELOAD};
 
@@ -60,15 +63,25 @@ async fn master_runtime() {
         rx_socketserver
     ) = mpsc::channel::<SocketEvent>(8);
     
+    let (
+        tx_jobs,
+        rx_jobs
+    ) = mpsc::channel::<JobContract>(8);
+    
     let job_manager = JobManager::new(
         rx_manager,
         rx_socketserver,
+        rx_jobs,
     );
     
     let socket_server = SocketServer::new(
         tx_manager,
         tx_socketserver,
     );
+
+    let str_f = PathBuf::from("/home/axey/trahl/test-resources/red_320x240_h264_1s.mp4");
+    let script_p = PathBuf::from("/home/axey/trahl/test-resources/test.lua");
+    _ = tx_jobs.send(JobContract::new(str_f, HashMap::new(), script_p)).await;
 
     let _ = tokio::join!(
         tokio::spawn(web_service(ctx.clone())),

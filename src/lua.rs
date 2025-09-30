@@ -21,8 +21,10 @@ use media::{
     _ffprobe,
 };
 
+use crate::rpc::{JobStatusMsg, JobStatus};
+
 struct OutChannelWrapper {
-    tx: mpsc::Sender<String>,
+    tx: mpsc::Sender<JobStatusMsg>,
 }
 impl UserData for OutChannelWrapper {}
 
@@ -52,16 +54,18 @@ const UTIL_LUA: &str = include_str!("../lualib/util.lua");
 
 pub struct TrahlRuntime {
     vars: Option<HashMap<String, String>>,
-    logs: Option<mpsc::Sender<String>>,
+    logs: Option<mpsc::Sender<JobStatusMsg>>,
     tracing: Option<mpsc::Sender<Trace>>,
+    id: u128,
 }
 
 impl TrahlRuntime {
-    pub fn new() -> Self {
+    pub fn new(id: u128) -> Self {
         Self {
             vars: None,
             logs: None,
             tracing: None,
+            id: id
         }
     }
 
@@ -70,7 +74,7 @@ impl TrahlRuntime {
         self
     }
 
-    pub fn with_stdout(mut self, tx: mpsc::Sender<String>) -> Self {
+    pub fn with_stdout(mut self, tx: mpsc::Sender<JobStatusMsg>) -> Self {
         self.logs = Some(tx);
         self
     }
@@ -100,6 +104,8 @@ impl TrahlRuntime {
         if let Some(tx) = &self.logs {
             luactx.set_named_registry_value("out_channel", OutChannelWrapper { tx: tx.clone() })?;
         }
+
+        luactx.set_named_registry_value("job_id", self.id.to_string())?;
 
         let register_module = |name: &str, code: &'static str| -> Result<()> {
             let loader = luactx.create_function(move |lua, ()| {
@@ -141,12 +147,20 @@ impl TrahlRuntime {
                 4u8 => debug!(target: "lua", "{}", msg),
                 _ => info!(target: "lua", "{}", msg),
             }
+            let job_id_str = lua.named_registry_value::<String>("job_id").expect("Could not get job_id");
+            let job_id: u128 = job_id_str.parse().expect("Error parsing job_id");
             match lua.named_registry_value::<AnyUserData>("out_channel") {
                 Ok(ud) => {
                     let tx_wrapper = ud.borrow::<OutChannelWrapper>()?;
-                    tx_wrapper.tx.send(msg).await.map_err(Error::external);
+                    let msg = JobStatusMsg {
+                        job_id: job_id,
+                        status: JobStatus::Log { line: msg }
+                    };
+                    _ = tx_wrapper.tx.send(msg).await.map_err(Error::external);
                 }
-                Err(_) => {}
+                Err(e) => {
+                    panic!("Could not get out channel: {}", e);
+                }
             }
             Ok(())
         })?;

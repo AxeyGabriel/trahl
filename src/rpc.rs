@@ -42,6 +42,7 @@ pub struct JobStatusMsg {
 
 #[derive(Debug, Encode, Decode, Clone, PartialEq)]
 pub enum JobStatus {
+    Sent,
     Ack,
     Progress(TranscodeProgress),
     Log {
