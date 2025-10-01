@@ -58,6 +58,7 @@ local argsRemux = {
 }
 
 local probe = _trahl.ffprobe(srcfile)
+local duration = probe.streams[1].duration
 local codec = probe.streams[1].codec_long_name or ""
 if codec:lower():find("hevc") or codec:lower():find("h.265") then
 	_trahl.log(_trahl.INFO, "Codec is H.265")
@@ -67,7 +68,7 @@ else
 	_trahl.log(_trahl.INFO, "Remuxing to MKV")
 	-- REMUX	
 	local ok = pcall(function()
-		return _trahl.ffmpeg(argsRemux)
+		return _trahl.ffmpeg(duration, argsRemux)
 	end)
 
 	if not ok then
@@ -77,7 +78,7 @@ else
 	_trahl.log(_trahl.INFO, "Transcoding to H.265")
 	-- TRANSCODE
 	local ok = pcall(function()
-		return _trahl.ffmpeg(args)
+		return _trahl.ffmpeg(duration, args)
 	end)
 
 	if not ok then

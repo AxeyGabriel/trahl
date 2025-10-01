@@ -67,6 +67,8 @@ pub struct TranscodeProgress {
     pub cur_time: Option<Duration>,
     pub percentage: Option<f64>,
     pub eta: Option<Duration>,
+    pub bitrate: Option<String>,
+    pub speed: Option<f64>,
 }
 
 /*

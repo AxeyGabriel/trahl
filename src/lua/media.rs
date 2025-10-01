@@ -5,7 +5,6 @@ use std::process::Stdio;
 use std::time::Duration;
 use std::collections::HashMap;
 use tokio::io::{AsyncBufReadExt, BufReader};
-use tokio::time::{interval, Duration as TDuration};
 use tracing::{error, info};
 
 use crate::extcmd::ffprobe::ffprobe;
@@ -22,13 +21,15 @@ pub async fn _ffprobe(luactx: Lua, mediapath: String) -> Result<Value> {
     luactx.to_value(&json)
 }
 
-pub async fn _ffmpeg(luactx: Lua, args: Table) -> Result<()> {
+pub async fn _ffmpeg(luactx: Lua, (duration, args): (f64, Table)) -> Result<()> {
     let mut args_vec = Vec::new();
     let mut i = 1;
     while let Ok(val) = args.get::<String>(i) {
         args_vec.push(val);
         i += 1;
     }
+
+    let total_duration = Duration::from_secs_f64(duration);
 
     args_vec.push("-progress".to_string());
     args_vec.push("pipe:1".to_string());
@@ -49,7 +50,6 @@ pub async fn _ffmpeg(luactx: Lua, args: Table) -> Result<()> {
     let mut err_reader = BufReader::new(stderr).lines();
     let mut reader = BufReader::new(stdout).lines();
     let mut block = HashMap::new();
-    let mut heartbeat = interval(TDuration::from_secs(1));
     
     let job_id_str = luactx.named_registry_value::<String>("job_id")?;
     let job_id: u128 = job_id_str.parse().expect("Error parsing job_id");
@@ -81,22 +81,42 @@ pub async fn _ffmpeg(luactx: Lua, args: Table) -> Result<()> {
             line = reader.next_line() => {
                 match line {
                     Ok(Some(line)) => {
-                        if line.trim().is_empty() {
-                            continue;
-                        }
                         if let Some((k,v)) = line.split_once('=') {
                             if k == "progress" {
-                                let frame = block.get("frame").and_then(|f: &String| f.parse::<u64>().ok());
-                                let fps = block.get("fps").and_then(|f: &String| f.parse::<u64>().ok());
-                                let cur_time = block.get("fps").and_then(|f: &String| f.parse::<u64>().ok())
-                                    .map(Duration::from_millis);
+                                let frame = block.get("frame")
+                                    .and_then(|f: &String| f.parse::<u64>().ok());
+                                let fps = block.get("fps")
+                                    .and_then(|f: &String| f.parse::<f64>().ok())
+                                    .map(|f| f.round() as u64);
+                                let bitrate = block.get("bitrate")
+                                    .and_then(|f: &String| f.trim().parse::<String>().ok());
+
+                                //let total_size = block.get("total_size")
+                                //    .and_then(|f: &String| f.parse::<u64>().ok());
+                                let speed = block.get("speed")
+                                    .and_then(|f: &String| f.trim().trim_end_matches('x').parse::<f64>().ok());
+                                let cur_time = block.get("out_time_ms")
+                                    .and_then(|f: &String| f.parse::<u64>().ok())
+                                    .map(Duration::from_micros); //out_time_ms is actually
+                                                                 //microseconds
+                                let percentage = cur_time.map(|ct| {
+                                    let pct = (ct.as_secs_f64() / total_duration.as_secs_f64()) * 100.0;
+                                    pct.min(100.0).ceil()
+                                });
+
+                                let eta = cur_time.and_then(|ct| speed.map(|s| {
+                                    let remaining = total_duration.saturating_sub(ct);
+                                    Duration::from_secs_f64(remaining.as_secs_f64() / s)
+                                }));
 
                                 let tp = TranscodeProgress {
                                     frame: frame,
                                     fps: fps,
                                     cur_time: cur_time,
-                                    percentage: None,
-                                    eta: None,
+                                    percentage: percentage,
+                                    eta: eta,
+                                    bitrate: bitrate,
+                                    speed: speed
                                 };
 
                                 let msg = JobStatusMsg {
@@ -120,28 +140,6 @@ pub async fn _ffmpeg(luactx: Lua, args: Table) -> Result<()> {
                     Err(e) => {
                         error!("FFMPEG stdout read error: {:?}", e);
                     }
-                }
-            }
-            _ = heartbeat.tick() => {
-                if !block.is_empty() {
-                                let frame = block.get("frame").and_then(|f: &String| f.parse::<u64>().ok());
-                                let fps = block.get("fps").and_then(|f: &String| f.parse::<u64>().ok());
-                                let cur_time = block.get("fps").and_then(|f: &String| f.parse::<u64>().ok())
-                                    .map(Duration::from_millis);
-
-                                let tp = TranscodeProgress {
-                                    frame: frame,
-                                    fps: fps,
-                                    cur_time: cur_time,
-                                    percentage: None,
-                                    eta: None,
-                                };
-
-                                let msg = JobStatusMsg {
-                                    job_id: job_id,
-                                    status: JobStatus::Progress(tp)
-                                };
-                    let _ = tx_wrapper.tx.send(msg).await.map_err(Error::external);
                 }
             }
         }
