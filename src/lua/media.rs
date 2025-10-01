@@ -22,7 +22,7 @@ pub async fn _ffprobe(luactx: Lua, mediapath: String) -> Result<Value> {
     luactx.to_value(&json)
 }
 
-pub async fn _ffmpeg(luactx: Lua, args: Table) -> Result<Value> {
+pub async fn _ffmpeg(luactx: Lua, args: Table) -> Result<()> {
     let mut args_vec = Vec::new();
     let mut i = 1;
     while let Ok(val) = args.get::<String>(i) {
@@ -45,7 +45,8 @@ pub async fn _ffmpeg(luactx: Lua, args: Table) -> Result<Value> {
     info!("Started FFMPEG: {:?}", args_vec);
 
     let stdout = child.stdout.take().expect("Stdout is piped");
-    //let stderr = child.stderr.take().expect("Stderr is piped");
+    let stderr = child.stderr.take().expect("Stderr is piped");
+    let mut err_reader = BufReader::new(stderr).lines();
     let mut reader = BufReader::new(stdout).lines();
     let mut block = HashMap::new();
     let mut heartbeat = interval(TDuration::from_secs(1));
@@ -58,6 +59,25 @@ pub async fn _ffmpeg(luactx: Lua, args: Table) -> Result<Value> {
 
     loop {
         tokio::select! {
+            line = err_reader.next_line() => {
+                match line {
+                    Ok(Some(line)) => {
+                        if line.trim().is_empty() {
+                            continue;
+                        }
+
+                        let msg = JobStatusMsg {
+                            job_id: job_id,
+                            status: JobStatus::Log {
+                                line: line
+                            }
+                        };
+                        _ = tx_wrapper.tx.send(msg).await.map_err(Error::external);
+                    },
+                    Ok(None) => {}
+                    Err(_) => {}
+                }
+            },
             line = reader.next_line() => {
                 match line {
                     Ok(Some(line)) => {
@@ -127,13 +147,15 @@ pub async fn _ffmpeg(luactx: Lua, args: Table) -> Result<Value> {
         }
     }
 
-    let status = child.wait().await?;
+    let status = child.wait()
+        .await
+        .map_err(|op| Error::external(op))?;
+
     if !status.success() {
-        error!("FFMPEG exited with error: {:?}", status);
-        return Ok(mlua::Value::Boolean(false));
+        return Err(Error::external("ffmpeg failed"));
     }
    
-    Ok(mlua::Value::Boolean(true))
+    Ok(())
 }
 
 #[cfg(test)]

@@ -21,6 +21,11 @@ function _M.print_table(t)
     end
 end
 
+function _M.panic(str)
+	_trahl.log(_trahl.ERROR, str)
+	error(str)
+end
+
 function _M.discord_message(url, str)
 	if not url or not str then
 		_trahl.log(_trahl.ERROR, "Discord webhook failed: invalid url or message")

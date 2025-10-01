@@ -46,7 +46,7 @@ _trahl.log(_trahl.INFO, "cache_dir: " .. cachedir)
 _trahl.log(_trahl.INFO, "dst_dir: " .. dstdir)
 
 local args = {
-	"-i", srcfile,
+	"-sssi", srcfile,
 	"-c:v", "libx265",
 	"-preset", "medium",
 	"-crf", "28",
@@ -62,7 +62,14 @@ if codec:lower():find("hevc") or codec:lower():find("h.265") then
 else
 	_trahl.log(_trahl.INFO, "Codec is not H.265")
 
-	_trahl.ffmpeg(args)
-	_trahl.set_output(outfile)
+	local ok = pcall(function()
+		return _trahl.ffmpeg(args)
+	end)
+
+	if not ok then
+		util.panic("FFMPEG failed")
+	end
+
+	_trahl.set_output(outfile, _trahl.O_PRESERVE_DIR)
 end
 EOF
