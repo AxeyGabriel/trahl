@@ -26,12 +26,22 @@ pub async fn copy_preserve_structure(
     dst_dir: &Path,
 ) -> Result<PathBuf> {
     // Compute the relative path from the library root
-    let relative_path = original_file.strip_prefix(library_root)
-        .map_err(|_| anyhow::anyhow!("File {} is not under library root {}", original_file.display(), library_root.display()))?;
+    let relative_path = original_file
+        .strip_prefix(library_root)
+        .map_err(|_| anyhow::anyhow!(
+            "File {} is not under library root {}",
+            original_file.display(),
+            library_root.display()
+        ))?;
 
     // Build the full destination path
-    let dst_path = dst_dir.join(relative_path);
-
+    //let dst_path = dst_dir.join(relative_path);
+    let dst_path = dst_dir.join(
+        relative_path.parent()
+            .unwrap_or_else(|| Path::new(""))
+            .join(src_file.file_name().unwrap())
+    );
+    
     // Ensure all parent directories exist
     if let Some(parent) = dst_path.parent() {
         fs::create_dir_all(parent).await?;

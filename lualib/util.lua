@@ -10,6 +10,14 @@ function _M.file_size(path)
 	return size
 end
 
+function _M.file_name(path)
+	return path:match("^.+/(.+)$")
+end
+
+function _M.file_strip_ext(filename)
+	return filename:match("(.+)%..+$") or filename
+end
+
 function _M.print_table(t)
     for k, v in pairs(t) do
         if type(v) == "table" then

@@ -210,9 +210,11 @@ impl Job {
                                 let filename = file.file_name().unwrap();
                                 let dst_path = Path::new(&self.dst_dir).join(filename);
                                 tokio::fs::copy(file, &dst_path).await.unwrap();
+                                result = Some(dst_path.to_string_lossy().to_string());
                             },
                             3 => {
-                                tokio::fs::copy(file, self.original_file).await.unwrap();
+                                tokio::fs::copy(file, self.original_file.clone()).await.unwrap();
+                                result = Some(self.original_file.to_string_lossy().to_string());
                             },
                             _ => {
                                 if let Err(se) = self.status_tx.send(JobStatusMsg {
