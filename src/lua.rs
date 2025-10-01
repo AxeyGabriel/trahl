@@ -171,6 +171,7 @@ impl TrahlRuntime {
         let ffi_time = luactx.create_function(_time)?;
         let ffi_ffprobe = luactx.create_async_function(_ffprobe)?;
         let ffi_ffmpeg = luactx.create_async_function(_ffmpeg)?;
+        let ffi_setoutput = luactx.create_async_function(_set_output)?;
 
         table.set("INFO", 1)?;
         table.set("WARN", 2)?;
@@ -184,6 +185,11 @@ impl TrahlRuntime {
         table.set("time", ffi_time)?;
         table.set("ffprobe", ffi_ffprobe)?;
         table.set("ffmpeg", ffi_ffmpeg)?;
+        
+        table.set("O_PRESERVE_DIR", 1)?;
+        table.set("O_FLAT", 2)?;
+        table.set("O_OVERWRITE", 3)?;
+        table.set("set_output", ffi_setoutput)?;
 
         Ok(())
     }
@@ -240,6 +246,12 @@ fn _log(_: &Lua, (level, msg): (u8, String)) -> Result<()> {
     Ok(())
 }
 
+async fn _set_output(lua: Lua, (file, mode): (String, u8)) -> Result<()> {
+    lua.set_named_registry_value("output", file)?;
+    lua.set_named_registry_value("output_mode", mode)?;
+    Ok(()) 
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -250,7 +262,7 @@ mod tests {
     async fn test_log() -> Result<()> {
         init_tracing();
 
-        let lua = TrahlRuntime::new().build()?;
+        let lua = TrahlRuntime::new(1).build()?;
         
         lua.load(r#"
             _trahl.log(_trahl.INFO, "INFO LOG")
@@ -270,7 +282,7 @@ mod tests {
             ("KEY_B".to_string(), "123".to_string())
         ]);
 
-        let lua = TrahlRuntime::new()
+        let lua = TrahlRuntime::new(1)
             .with_vars(vars)
             .build()?;
 
@@ -285,7 +297,7 @@ mod tests {
     #[tokio::test]
     async fn test_util_exists() -> Result<()> {
         init_tracing();
-        let lua = TrahlRuntime::new()
+        let lua = TrahlRuntime::new(1)
             .build()?;
 
         lua.load(r#"
@@ -298,7 +310,7 @@ mod tests {
     #[tokio::test]
     async fn test_stdlibs() -> Result<()> {
         init_tracing();
-        let lua = TrahlRuntime::new()
+        let lua = TrahlRuntime::new(1)
             .build()?;
 
         lua.load(format!(r#"

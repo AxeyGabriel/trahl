@@ -6,6 +6,7 @@ mod worker;
 mod lua;
 mod extcmd;
 mod rpc;
+mod utils;
 
 use crate::config::SystemConfig;
 use crate::args::parse_args;
@@ -48,6 +49,7 @@ fn main() -> Result<(), Error> {
 
     if args.config_test {
         println!("Configuration test OK");
+        println!("{:#?}", CONFIG.get().unwrap().read().unwrap());
         std::process::exit(0);
     }
 

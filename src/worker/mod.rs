@@ -58,7 +58,18 @@ async fn worker_runtime() {
         mut rx_from_job
     ) = mpsc::channel::<JobStatusMsg>(8);
 
-    let (job_runner, _jrh) = JobRunner::new().run();
+    let ctx_clone = ctx.clone();
+    let cache_dir = {
+        let cfg = ctx_clone.config.read().unwrap();
+        cfg.worker.cache_dir.clone()
+    };
+
+    let remaps = {
+        let cfg = ctx_clone.config.read().unwrap();
+        cfg.worker.fs_remaps.clone()
+    };
+
+    let (job_runner, _jrh) = JobRunner::new(cache_dir, remaps).run();
 
     let ctx_clone = ctx.clone();
     let manager = async move {

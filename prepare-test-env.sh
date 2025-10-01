@@ -34,17 +34,23 @@ EOF
 cat > "$TARGET_DIR/test_transcode.lua" <<EOF
 local util = require("util")
 local srcfile = _trahl.vars.SRCFILE
-local size = util.file_size(srcfile)
+local cachedir = _trahl.vars.CACHEDIR
+local dstdir = _trahl.vars.DSTDIR
+local outfile = cachedir .. "/out.mkv"
 local wh = "https://discord.com/api/webhooks/1422425509999935583/h5mDwqjxXW59abMokj1_mOCO2INiFfeEdYixKgknVl_He2N3XxhX2muZQvZu_qQakjtw"
 
-_trahl.log(_trahl.INFO, "filename: " .. srcfile .. " size: " .. size .. " bytes")
+_trahl.log(_trahl.INFO, "filename: " .. srcfile)
+local size = util.file_size(srcfile)
+_trahl.log(_trahl.INFO, "size: " .. size .. " bytes")
+_trahl.log(_trahl.INFO, "cache_dir: " .. cachedir)
+_trahl.log(_trahl.INFO, "dst_dir: " .. dstdir)
 
 local args = {
 	"-i", srcfile,
 	"-c:v", "libx265",
 	"-preset", "medium",
 	"-crf", "28",
-	"out.mkv"
+	outfile
 }
 
 local probe = _trahl.ffprobe(srcfile)
@@ -57,5 +63,6 @@ else
 	_trahl.log(_trahl.INFO, "Codec is not H.265")
 
 	_trahl.ffmpeg(args)
+	_trahl.set_output(outfile)
 end
 EOF

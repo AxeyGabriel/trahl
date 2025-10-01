@@ -14,7 +14,10 @@ orch_bind_addr = "127.0.0.1:8245"
 [worker]
 master_addr = "127.0.0.1:8245"
 identifier = "test-worker"
-cache_dir = "/tmp"
+cache_dir = "/tmp/trahl-cache"
+fs_remaps = [
+    { master = "/", worker = "/" }
+]
 
 [log]
 level = "debug"

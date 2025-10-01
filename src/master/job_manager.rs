@@ -46,6 +46,7 @@ enum JobStatus {
     Acknowledged,
     InProgress(TranscodeProgress),
     Failed(String),
+    Copying,
     Success,
 }
 
@@ -57,17 +58,21 @@ struct JobTracking {
 pub struct JobContract {
     id: Uuid,
     src_file: PathBuf,
+    dst_dir: PathBuf,
     vars: HashMap<String, String>,
     script_path: PathBuf,
+    library_root: PathBuf,
 }
 
 impl JobContract {
-    pub fn new(src_file: PathBuf, vars: HashMap<String, String>, script_path: PathBuf) -> Self {
+    pub fn new(library_root: PathBuf, src_file: PathBuf, dst_dir: PathBuf, vars: HashMap<String, String>, script_path: PathBuf) -> Self {
         Self {
             id: Uuid::new_v4(),
             src_file,
+            dst_dir,
             vars,
             script_path,
+            library_root,
         }
     }
 }
@@ -103,7 +108,7 @@ impl JobManager {
         loop {
             tokio::select!(
                 _ = dispatch_timer.tick() => {
-                    if let Some(mut job) = self.pending_jobs.pop_front() {
+                    if let Some(job) = self.pending_jobs.pop_front() {
                         let selected_peer = self.peer_registry
                             .iter_mut()
                             .filter(|(_, p)| p.active_job_count() < p.info.simultaneous_jobs.into())
@@ -111,11 +116,13 @@ impl JobManager {
 
                         if let Some((_id, peer)) = selected_peer {
                             let script = tokio::fs::read_to_string(job.script_path).await.unwrap();
-                            job.vars.insert("SRCFILE".to_string(), job.src_file.into_os_string().to_string_lossy().into_owned());
                             let jobmsg = JobMsg {
                                 job_id: uuid_to_u128(job.id),
                                 script: script,
                                 vars: job.vars,
+                                file: job.src_file.into_os_string().to_string_lossy().into_owned(),
+                                dst_dir: job.dst_dir.to_string_lossy().to_string(),
+                                library_root: job.library_root.to_string_lossy().into_owned(),
                             };
 
                             info!("Sent job id {} to worker {}", jobmsg.job_id, peer.info.identifier);
@@ -195,9 +202,13 @@ async fn msg_from_peer(peer: &mut PeerInfo, msg: Message) {
                         job_tracking.status = JobStatus::Failed(descr);
 
                     },
-                    RpcJobStatus::Done => {
+                    RpcJobStatus::Done { file } => {
                         info!("Job {} completed successfuly on worker {}", msg.job_id, peer.info.identifier);
                         job_tracking.status = JobStatus::Success;
+                    },
+                    RpcJobStatus::Copying => {
+                        info!("Job {} is copying files on worker {}", msg.job_id, peer.info.identifier);
+                        job_tracking.status = JobStatus::Copying;
                     },
                     _ => {}
                 }

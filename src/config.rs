@@ -1,15 +1,15 @@
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::net::SocketAddr;
-use std::path::{PathBuf};
+use std::path::{Path, PathBuf};
 use std::fs;
 use toml;
 
 #[cfg_attr(test, derive(PartialEq, Eq))]
 #[derive(Deserialize, Debug, Clone)]
 pub struct FsRemap {
-    pub master: String,
-    pub worker: String,
+    pub master: PathBuf,
+    pub worker: PathBuf,
 }
 
 #[cfg_attr(test, derive(PartialEq, Eq))]
@@ -27,9 +27,7 @@ pub struct JobConfig {
     pub enabled: bool,
     pub source_path: PathBuf,
     pub destination_path: PathBuf,
-    pub lua_on_start: Option<PathBuf>,
     pub lua_script: PathBuf,
-    pub lua_on_done: Option<PathBuf>,
     pub variables: HashMap<String, String>,
 }
 
@@ -124,6 +122,25 @@ impl SystemConfig {
         let contents = fs::read_to_string(path)?;
         let config: SystemConfig = toml::from_str(&contents)?;
         Ok(config)
+    }
+}
+
+
+impl FsRemap {
+    pub fn map_to_master(&self, path: &Path) -> PathBuf {
+        if let Ok(stripped) = path.strip_prefix(&self.worker) {
+            self.master.join(stripped)
+        } else {
+            path.to_path_buf()
+        }
+    }
+
+    pub fn map_to_worker(&self, path: &Path) -> PathBuf {
+        if let Ok(stripped) = path.strip_prefix(&self.master) {
+            self.worker.join(stripped)
+        } else {
+            path.to_path_buf()
+        }
     }
 }
 
@@ -236,8 +253,6 @@ mod tests {
                 source_path: "/media/source/movies".into(),
                 destination_path: "/media/destination/movies".into(),
                 lua_script: "/configs/scripts/movie.lua".into(),
-                lua_on_done: None,
-                lua_on_start: None,
                 variables: HashMap::from([
                     ("EXCLUDECODEC".to_string(), "h265".to_string()),
                 ]),
@@ -248,8 +263,6 @@ mod tests {
                 source_path: "/media/source/tv".into(),
                 destination_path: "/media/destination/tv".into(),
                 lua_script: "/configs/scripts/tv.lua".into(),
-                lua_on_done: None,
-                lua_on_start: None,
                 variables: HashMap::from([
                     ("QUALITY".to_string(), "720p".to_string()),
                     ("CODEC".to_string(), "hevc".to_string()),

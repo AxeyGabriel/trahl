@@ -31,7 +31,10 @@ pub struct WorkerInfo {
 pub struct JobMsg {
     pub job_id: u128,
     pub script: String,
-    pub vars: HashMap<String, String>
+    pub vars: HashMap<String, String>,
+    pub file: String,
+    pub library_root: String,
+    pub dst_dir: String,
 }
 
 #[derive(Debug, Encode, Decode, Clone, PartialEq)]
@@ -45,13 +48,16 @@ pub enum JobStatus {
     Sent,
     Ack,
     Progress(TranscodeProgress),
+    Copying,
     Log {
         line: String,
     },
     Error {
         descr: String,
     },
-    Done,
+    Done {
+        file: Option<String>,
+    },
 }
 
 #[derive(Debug, Encode, Decode, Clone, PartialEq)]
