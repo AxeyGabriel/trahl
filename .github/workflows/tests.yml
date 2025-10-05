@@ -22,20 +22,25 @@ jobs:
 
       # Cache test environment
       - name: Cache test environment
+        id: test-env-cache
         uses: actions/cache@v4
         with:
           path: test-resources
           key: test-resources-${{ hashFiles('prepare-test-env.sh') }}
           restore-keys: |
             test-resources-
-
+ 
       - name: Prepare test environment
-        if: steps.cache.outputs.cache-hit != 'true'
+        if: steps.test-env-cache.outputs.cache-hit != 'true'
         run: |
-          wget https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz
-          tar -xf ffmpeg-release-amd64-static.tar.xz
-          sudo cp ffmpeg-*/ffmpeg /usr/local/bin/
-          sudo cp ffmpeg-*/ffprobe /usr/local/bin/
+          if [ ! -f test-resources/ffmpeg/ffmpeg ]; then
+            wget https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz
+            tar -xf ffmpeg-release-amd64-static.tar.xz
+            mkdir -p test-resources/ffmpeg
+            cp ffmpeg-*/ffmpeg ffmpeg-*/ffprobe test-resources/ffmpeg/
+          fi
+          cp test-resources/ffmpeg/ffmpeg /usr/local/bin/
+          cp test-resources/ffmpeg/ffprobe /usr/local/bin/
           chmod +x prepare-test-env.sh
           ./prepare-test-env.sh
 
