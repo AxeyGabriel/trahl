@@ -147,6 +147,7 @@ fn create_ffis(luactx: &Lua, table: &Table) -> Result<()> {
     let ffi_ffprobe = luactx.create_async_function(_ffprobe)?;
     let ffi_ffmpeg = luactx.create_async_function(_ffmpeg)?;
     let ffi_setoutput = luactx.create_async_function(_set_output)?;
+    let ffi_milestone = luactx.create_async_function(_milestone)?;
 
     table.set("INFO", 1)?;
     table.set("WARN", 2)?;
@@ -160,6 +161,7 @@ fn create_ffis(luactx: &Lua, table: &Table) -> Result<()> {
     table.set("time", ffi_time)?;
     table.set("ffprobe", ffi_ffprobe)?;
     table.set("ffmpeg", ffi_ffmpeg)?;
+    table.set("milestone", ffi_milestone)?;
     
     table.set("O_PRESERVE_DIR", 1)?;
     table.set("O_FLAT", 2)?;
@@ -194,6 +196,14 @@ async fn _log(luactx: Lua, (level, msg): (u8, String)) -> Result<()> {
 async fn _set_output(lua: Lua, (file, mode): (String, u8)) -> Result<()> {
     lua.set_named_registry_value("output", file)?;
     lua.set_named_registry_value("output_mode", mode)?;
+    Ok(()) 
+}
+
+async fn _milestone(lua: Lua, descr: String) -> Result<()> {
+    let runtimectx = TrahlRuntimeCtx::get_ref(&lua)?.clone();
+    info!("JOB {}: new milestone: {}", runtimectx.job_id, descr);
+    let msg = JobStatusMsg::job_milestone(runtimectx.job_id, descr);
+    runtimectx.status_tx.send(msg).await.map_err(Error::external)?;
     Ok(()) 
 }
 

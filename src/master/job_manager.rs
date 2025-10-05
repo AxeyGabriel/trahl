@@ -202,6 +202,9 @@ async fn msg_from_peer(peer: &mut PeerInfo, msg: Message) {
                         job_tracking.log
                             .push(line);
                     },
+                    RpcJobStatus::Milestone(descr) => {
+                        info!("Job {} milestone: {}", msg.job_id, descr);
+                    },
                     RpcJobStatus::Error(descr) => {
                         error!("Job {} failed on worker {}: {}", msg.job_id, peer.info.identifier, descr);
                         job_tracking.status = JobStatus::Failed(descr);
@@ -215,7 +218,6 @@ async fn msg_from_peer(peer: &mut PeerInfo, msg: Message) {
                         info!("Job {} is copying files on worker {}", msg.job_id, peer.info.identifier);
                         job_tracking.status = JobStatus::Copying;
                     },
-                    _ => {}
                 }
             } else {
                 warn!("Received updates for a unknown job: {}", msg.job_id);
