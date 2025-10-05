@@ -7,18 +7,35 @@ use std::collections::HashMap;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tracing::{error, info};
 
-use crate::extcmd::ffprobe::ffprobe;
-use crate::lua::OutChannelWrapper;
+use crate::extcmd::ffprobe::{ffprobe, FFProbeError};
+use crate::lua::{OutChannelWrapper, TrahlRuntimeCtx};
 use crate::rpc::{JobStatusMsg, JobStatus, TranscodeProgress};
 
 pub async fn _ffprobe(luactx: Lua, mediapath: String) -> Result<Value> {
+    let runtimectx = TrahlRuntimeCtx::get_ref(&luactx)?;
+    let ffprobe_cmd = runtimectx.
+
     let cmdpath = PathBuf::from("ffprobe");
     let mediapath = PathBuf::from(mediapath);
-    let json = ffprobe(&cmdpath, &mediapath)
-        .await
-        .map_err(Error::external)?;
-
-    luactx.to_value(&json)
+    let out = ffprobe(&cmdpath, &mediapath).await;
+    match out {
+        Ok(json) => {
+            luactx.to_value(&json)
+        },
+        Err(FFProbeError::Failed(e)) => {
+            let msg = JobStatusMsg {
+                job_id: job_id,
+                status: JobStatus::Log {
+                    line: e.to_string()
+                }
+            };
+            _ = tx_wrapper.tx.send(msg).await.map_err(Error::external);
+            Err(Error::external(e))
+        },
+        Err(e) => {
+            Err(Error::external(e))
+        }
+    }
 }
 
 pub async fn _ffmpeg(luactx: Lua, (duration, args): (f64, Table)) -> Result<()> {
@@ -179,7 +196,7 @@ mod tests {
         lua.load(lua_code).exec_async().await?;
 
         let test_fn: Function = lua.globals().get("test_ffprobe")?;
-        let ret: Table = test_fn.call_async(()).await?;        
+        let _: Table = test_fn.call_async(()).await?;        
 
         Ok(())
     }

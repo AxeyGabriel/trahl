@@ -4,12 +4,13 @@ mod time;
 mod media;
 
 use core::fmt;
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Weak};
 
 use chrono::{DateTime, Utc};
-use mlua::{AnyUserData, Debug, DebugEvent, Error, HookTriggers, Lua, LuaOptions, Result, StdLib, Table, UserData, VmState};
+use mlua::{AnyUserData, Debug, DebugEvent, Error, FromLua, HookTriggers, Lua, LuaOptions, Result, StdLib, Table, UserData, VmState};
 use tracing::{info, warn, error, debug};
 use tokio::sync::mpsc;
+use std::sync::Arc;
 
 use serialization::_from_json;
 use http::_http_request;
@@ -53,20 +54,38 @@ impl fmt::Display for Trace {
 
 const UTIL_LUA: &str = include_str!("../lualib/util.lua");
 
+pub struct TrahlRuntimeCtx {
+    status_tx: Option<mpsc::Sender<JobStatusMsg>>,
+    job_id: u128,
+}
+
+impl TrahlRuntimeCtx {
+    pub fn get_ref(lua: &Lua) -> Result<Arc<Self>> {
+        let ud: AnyUserData = lua.named_registry_value("__trahl_runtime")?;
+        let weak = ud.borrow::<Weak<Self>>()?;
+        if let Some(arc) = weak.upgrade() {
+            Ok(arc)
+        } else {
+            Err(Error::RuntimeError("TrahlRuntimePublic dropped".into()))
+        }
+    }
+}
+
 pub struct TrahlRuntime {
     vars: Option<HashMap<String, String>>,
-    logs: Option<mpsc::Sender<JobStatusMsg>>,
     tracing: Option<mpsc::Sender<Trace>>,
-    id: u128,
+    public: Arc<TrahlRuntimeCtx>,
 }
 
 impl TrahlRuntime {
-    pub fn new(id: u128) -> Self {
+    pub fn new(job_id: u128) -> Self {
         Self {
             vars: None,
-            logs: None,
             tracing: None,
-            id: id
+            public: Arc::new(TrahlRuntimePublic {
+                status_tx: None,
+                job_id,
+            }),
         }
     }
 
@@ -75,16 +94,18 @@ impl TrahlRuntime {
         self
     }
 
-    pub fn with_stdout(mut self, tx: mpsc::Sender<JobStatusMsg>) -> Self {
-        self.logs = Some(tx);
+    pub fn with_status_channel(mut self, tx: mpsc::Sender<JobStatusMsg>) -> Self {
+        Arc::get_mut(&mut self.public)
+            .unwrap()
+            .status_tx = Some(tx);
         self
     }
-
+/*
     pub fn with_tracing(mut self, tracing: mpsc::Sender<Trace>) -> Self {
         self.tracing = Some(tracing);
         self
     }
-
+*/
     pub fn build(&self) -> Result<Lua> {
         let luactx = Lua::new_with(
             StdLib::TABLE
@@ -102,11 +123,10 @@ impl TrahlRuntime {
         let package: Table = globals.get("package")?;
         let preload: Table = package.get("preload")?;
 
-        if let Some(tx) = &self.logs {
-            luactx.set_named_registry_value("out_channel", OutChannelWrapper { tx: tx.clone() })?;
-        }
-
-        luactx.set_named_registry_value("job_id", self.id.to_string())?;
+        let public_vars = Arc::downgrade(&self.public);
+        luactx.set_named_registry_value("__trahl_runtime", 
+            luactx.create_any_userdata(public_vars)?
+        )?;
 
         let register_module = |name: &str, code: &'static str| -> Result<()> {
             let loader = luactx.create_function(move |lua, ()| {
@@ -130,11 +150,11 @@ impl TrahlRuntime {
 
         globals.set("_trahl", &table_trahl)?;
         table_trahl.set("vars", table_vars)?;
-
+/*
         if let Some(tracing) = &self.tracing {
             self.enable_tracing(&luactx, tracing.clone());
         }
-
+*/
         Ok(luactx)
     }
 
@@ -201,7 +221,7 @@ impl TrahlRuntime {
 
         Ok(())
     }
-
+/*
     fn enable_tracing(&self, luactx: &Lua, tx: mpsc::Sender<Trace>) -> Result<()> {
         let triggers = HookTriggers {
             on_calls: true,
@@ -233,6 +253,7 @@ impl TrahlRuntime {
 
         Ok(())
     }
+*/
 }
 
 fn _log(_: &Lua, (level, msg): (u8, String)) -> Result<()> {

@@ -59,8 +59,6 @@ impl JobRunner {
                     }
                 };
 
-                let mut runtime = TrahlRuntime::new(msg.spec.job_id)
-                    .with_stdout(msg.status_tx.clone());
                 let mut vars = msg.spec.vars.clone();
                 vars.insert("CACHEDIR".to_string(), tmpdir.path().to_str().unwrap().to_string());
 
@@ -75,7 +73,9 @@ impl JobRunner {
                 let orig_libroot = Path::new(&msg.spec.library_root);
                 let libroot = utils::remap_to_worker(&orig_libroot, &remaps_clone);
 
-                runtime = runtime.with_vars(vars);
+                let runtime = TrahlRuntime::new(msg.spec.job_id)
+                    .with_stdout(msg.status_tx.clone())
+                    .with_vars(vars);
 
                 match runtime.build() {
                     Ok(lua) => {
