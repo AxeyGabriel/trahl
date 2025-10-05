@@ -57,6 +57,7 @@ local argsRemux = {
 	remuxed
 }
 
+_trahl.milestone("Probing")
 local probe = _trahl.ffprobe(srcfile)
 local duration = probe.streams[1].duration
 local codec = probe.streams[1].codec_long_name or ""
@@ -65,7 +66,7 @@ if codec:lower():find("hevc") or codec:lower():find("h.265") then
 	util.discord_message(wh, "Hello From Lua")
 	return
 else
-	_trahl.log(_trahl.INFO, "Remuxing to MKV")
+	_trahl.milestone("Remuxing to MKV")
 	-- REMUX	
 	local ok = pcall(function()
 		return _trahl.ffmpeg(duration, argsRemux)
