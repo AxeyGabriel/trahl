@@ -200,69 +200,131 @@ async fn _set_output(lua: Lua, (file, mode): (String, u8)) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mlua::Result;
     use crate::tests::init_tracing;
+    use tokio::sync::mpsc;
+
 
     #[tokio::test]
-    async fn test_log() -> Result<()> {
+    async fn test_log() -> anyhow::Result<()> {
         init_tracing();
-
-        let lua = TrahlRuntimeBuilder::new(1).build()?;
+        let (
+            tx,
+            mut rx
+        ) = mpsc::channel::<JobStatusMsg>(10);
         
-        lua.load(r#"
+        tokio::spawn(async move {
+            while let Some(_) = rx.recv().await {}
+        });
+
+        
+        let code = r#"
             _trahl.log(_trahl.INFO, "INFO LOG")
             _trahl.log(_trahl.WARN, "WARN LOG")
             _trahl.log(_trahl.ERROR, "ERROR LOG")
             _trahl.log(_trahl.DEBUG, "DEBUG LOG")
-        "#).exec_async().await?;
+        "#;
+
+        let lua = TrahlRuntimeBuilder::new(
+            1,
+            tx.clone(),
+            code.to_string()
+        ).build()?;
+
+        lua.exec().await?;
 
         Ok(())
     }
 
     #[tokio::test]
-    async fn test_vars() -> Result<()> {
+    async fn test_vars() -> anyhow::Result<()> {
         init_tracing();
+        let (
+            tx,
+            mut rx
+        ) = mpsc::channel::<JobStatusMsg>(10);
+        
+        tokio::spawn(async move {
+            while let Some(_) = rx.recv().await {}
+        });
+
         let vars: HashMap<String, String> = HashMap::from([
             ("KEY_A".to_string(), "VAL_A".to_string()),
             ("KEY_B".to_string(), "123".to_string())
         ]);
-
-        let lua = TrahlRuntime::new(1)
-            .with_vars(vars)
-            .build()?;
-
-        lua.load(r#"
+        
+        let code = r#"
             assert(_trahl.vars.KEY_A == "VAL_A", "Wrong KEY_A value")
             assert(tonumber(_trahl.vars.KEY_B) == 123, "Wrong KEY_B value")
-        "#).exec_async().await?;
+        "#;
+
+        let lua = TrahlRuntimeBuilder::new(
+            1,
+            tx.clone(),
+            code.to_string()
+        )
+        .add_vars(vars)
+        .build()?;
+
+        lua.exec().await?;
 
         Ok(())
     }
 
     #[tokio::test]
-    async fn test_util_exists() -> Result<()> {
+    async fn test_util_exists() -> anyhow::Result<()> {
         init_tracing();
-        let lua = TrahlRuntime::new(1)
-            .build()?;
+        let (
+            tx,
+            mut rx
+        ) = mpsc::channel::<JobStatusMsg>(10);
 
-        lua.load(r#"
+        tokio::spawn(async move {
+            while let Some(_) = rx.recv().await {}
+        });
+        
+        let code = r#"
             local c = require("util")
-        "#).exec_async().await?;
+        "#;
+
+        let lua = TrahlRuntimeBuilder::new(
+            1,
+            tx.clone(),
+            code.to_string()
+        )
+        .build()?;
+
+        lua.exec().await?;
 
         Ok(())
     }
 
     #[tokio::test]
-    async fn test_stdlibs() -> Result<()> {
+    async fn test_stdlibs() -> anyhow::Result<()> {
         init_tracing();
-        let lua = TrahlRuntime::new(1)
-            .build()?;
-
-        lua.load(format!(r#"
+        let (
+            tx,
+            mut rx
+        ) = mpsc::channel::<JobStatusMsg>(10);
+        
+        tokio::spawn(async move {
+            while let Some(_) = rx.recv().await {}
+        });
+        
+        let code = format!(r#"
         local c = require("util")
         local size = c.file_size("{}/{}")
         print("File size is " .. size .. "bytes")
-        "#, env!("CARGO_MANIFEST_DIR"), "test-resources/100_bytes_file.bin")).exec_async().await?;
+        "#, env!("CARGO_MANIFEST_DIR"), "test-resources/100_bytes_file.bin");
+
+
+        let lua = TrahlRuntimeBuilder::new(
+            1,
+            tx.clone(),
+            code
+        )
+        .build()?;
+
+        lua.exec().await?;
 
         Ok(())
     }
