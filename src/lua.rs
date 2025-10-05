@@ -3,11 +3,9 @@ mod serialization;
 mod time;
 mod media;
 
-use core::fmt;
 use std::{collections::HashMap, sync::Weak};
 
-use chrono::{DateTime, Utc};
-use mlua::{AnyUserData, Debug, DebugEvent, Error, FromLua, HookTriggers, Lua, LuaOptions, Result, StdLib, Table, UserData, VmState};
+use mlua::{AnyUserData, Error, Lua, LuaOptions, Result, StdLib, Table};
 use tracing::{info, warn, error, debug};
 use tokio::sync::mpsc;
 use std::sync::Arc;
@@ -26,28 +24,6 @@ use media::{
 use crate::rpc::{JobStatusMsg, JobStatus};
 
 const UTIL_LUA: &str = include_str!("../lualib/util.lua");
-
-struct Trace {
-    timestamp: DateTime<Utc>,
-    event: String,
-    name: Option<String>,
-    line: Option<usize>,
-    current_line: Option<usize>,
-}
-
-impl fmt::Display for Trace {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "[{}][{}] {}: name: {}, line: {}",
-            self.timestamp.to_rfc3339(),
-            self.event,
-            self.current_line.map_or("<none>".to_string(), |l| l.to_string()),
-            self.name.as_deref().unwrap_or("<anonymous>"),
-            self.line.map_or("<none>".to_string(), |l| l.to_string()),
-        )
-    }
-}
 
 pub struct TrahlRuntimeCtx {
     status_tx: mpsc::Sender<JobStatusMsg>,
@@ -68,7 +44,6 @@ impl TrahlRuntimeCtx {
 
 pub struct TrahlRuntimeBuilder {
     vars: HashMap<String, String>,
-    tracing: Option<mpsc::Sender<Trace>>,
     public: Arc<TrahlRuntimeCtx>,
     code: String,
 }
@@ -77,7 +52,6 @@ impl TrahlRuntimeBuilder {
     pub fn new(job_id: u128, status_tx: mpsc::Sender<JobStatusMsg>, code: String) -> Self {
         Self {
             vars: HashMap::new(),
-            tracing: None,
             public: Arc::new(TrahlRuntimeCtx {
                 status_tx,
                 job_id,
@@ -91,13 +65,7 @@ impl TrahlRuntimeBuilder {
         self
     }
 
-/*
-    pub fn with_tracing(mut self, tracing: mpsc::Sender<Trace>) -> Self {
-        self.tracing = Some(tracing);
-        self
-    }
-*/
-    pub fn build(mut self) -> anyhow::Result<TrahlRuntime> {
+    pub fn build(self) -> anyhow::Result<TrahlRuntime> {
         let luactx = Lua::new_with(
             StdLib::TABLE
             | StdLib::IO
@@ -139,11 +107,6 @@ impl TrahlRuntimeBuilder {
 
         globals.set("_trahl", &table_trahl)?;
         table_trahl.set("vars", table_vars)?;
-/*
-        if let Some(tracing) = &self.tracing {
-            self.enable_tracing(&luactx, tracing.clone());
-        }
-*/
 
         Ok(TrahlRuntime {
             _public: self.public,
@@ -214,39 +177,6 @@ fn create_vars(_: &Lua, table: &Table, vars: HashMap<String, String>) -> Result<
     Ok(())
 }
 
-/*
-fn enable_tracing(&self, luactx: &Lua, tx: mpsc::Sender<Trace>) -> Result<()> {
-    let triggers = HookTriggers {
-        on_calls: true,
-        on_returns: false,
-        every_line: false,
-        every_nth_instruction: None,
-    };
-
-    let tx_clone = tx.clone();
-    luactx.set_hook(triggers, move |_lua, dbg: &Debug| {
-        let msg = Trace {
-            event: match dbg.event() {
-                DebugEvent::Call => "CALL".to_string(),
-                DebugEvent::Ret => "RET".to_string(),
-                DebugEvent::TailCall => "TAILCALL".to_string(),
-                DebugEvent::Line => "LINE".to_string(),
-                DebugEvent::Count => "COUNT".to_string(),
-                DebugEvent::Unknown(n) => format!("UNKNOWN({})", n).to_string(),
-                
-            },
-            timestamp: Utc::now(),
-            name: dbg.function().info().name,
-            line: dbg.function().info().line_defined,
-            current_line: dbg.current_line(),
-        };
-        let _ = tx_clone.try_send(msg);
-        Ok(VmState::Continue)
-    })?;
-
-    Ok(())
-}
-*/
 async fn _log(luactx: Lua, (level, msg): (u8, String)) -> Result<()> {
     match level {
         1u8 => info!(target: "lua", "{}", msg),
