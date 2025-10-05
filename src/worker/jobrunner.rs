@@ -9,7 +9,7 @@ use mlua::Lua;
 use tracing::{info, error};
 
 use crate::config::FsRemap;
-use crate::lua::TrahlRuntime;
+use crate::lua::{TrahlRuntime, TrahlRuntimeBuilder};
 use crate::rpc::{JobMsg, JobStatus, JobStatusMsg};
 use crate::utils;
 
@@ -126,7 +126,7 @@ impl Job {
         let libroot = utils::remap_to_worker(&orig_libroot, &remaps);
         vars.insert("LIBRARYROOT".to_string(), libroot.to_string_lossy().to_string());
 
-        let runtime = TrahlRuntime::new(
+        let runtime = TrahlRuntimeBuilder::new(
             spec.job_id,
             status_tx.clone(),
             spec.script.clone())

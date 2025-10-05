@@ -66,15 +66,14 @@ impl TrahlRuntimeCtx {
     }
 }
 
-pub struct TrahlRuntime {
+pub struct TrahlRuntimeBuilder {
     vars: HashMap<String, String>,
     tracing: Option<mpsc::Sender<Trace>>,
     public: Arc<TrahlRuntimeCtx>,
-    luactx: Option<Lua>,
     code: String,
 }
 
-impl TrahlRuntime {
+impl TrahlRuntimeBuilder {
     pub fn new(job_id: u128, status_tx: mpsc::Sender<JobStatusMsg>, code: String) -> Self {
         Self {
             vars: HashMap::new(),
@@ -83,7 +82,6 @@ impl TrahlRuntime {
                 status_tx,
                 job_id,
             }),
-            luactx: None,
             code,
         }
     }
@@ -99,7 +97,7 @@ impl TrahlRuntime {
         self
     }
 */
-    pub fn build(mut self) -> anyhow::Result<Self> {
+    pub fn build(mut self) -> anyhow::Result<TrahlRuntime> {
         let luactx = Lua::new_with(
             StdLib::TABLE
             | StdLib::IO
@@ -147,34 +145,33 @@ impl TrahlRuntime {
         }
 */
 
-        self.luactx = Some(luactx);
-        Ok(self)
+        Ok(TrahlRuntime {
+            _public: self.public,
+            luactx: luactx,
+            code: self.code,
+        })
     }
+}
 
+pub struct TrahlRuntime {
+    _public: Arc<TrahlRuntimeCtx>,
+    luactx: Lua,
+    code: String,
+}
+
+impl TrahlRuntime {
     pub async fn exec(&self) -> anyhow::Result<()> {
-        if let Some(ctx) = &self.luactx {
-            ctx.load(&self.code)
-                .exec_async()
-                .await?;
-            Ok(())
-        } else {
-            Err(anyhow::anyhow!("Lua context not built!"))
-        }
+        self.luactx.load(&self.code)
+            .exec_async()
+            .await?;
+        Ok(())
     }
 
     pub fn get_output(&self) -> Result<String> {
-        if let Some(luactx) = &self.luactx {
-            luactx.named_registry_value::<String>("output")
-        } else {
-            Err(Error::RuntimeError("LuaCtx is not initialized".into()))
-        }
+        self.luactx.named_registry_value::<String>("output")
     }
     pub fn get_output_mode(&self) -> Result<u8> {
-        if let Some(luactx) = &self.luactx {
-            luactx.named_registry_value::<u8>("output_mode")
-        } else {
-            Err(Error::RuntimeError("LuaCtx is not initialized".into()))
-        }
+        self.luactx.named_registry_value::<u8>("output_mode")
     }
 }
 
@@ -283,7 +280,7 @@ mod tests {
     async fn test_log() -> Result<()> {
         init_tracing();
 
-        let lua = TrahlRuntime::new(1).build()?;
+        let lua = TrahlRuntimeBuilder::new(1).build()?;
         
         lua.load(r#"
             _trahl.log(_trahl.INFO, "INFO LOG")
