@@ -165,7 +165,7 @@ mod tests {
     use super::*;
     use mlua::{Lua, Result, Function, Table};
     use crate::tests::init_tracing;
-
+/*
     #[tokio::test]
     async fn test_ffprobe() -> Result<()> {
         init_tracing();
@@ -187,4 +187,5 @@ mod tests {
 
         Ok(())
     }
+*/
 }

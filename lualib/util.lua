@@ -18,6 +18,22 @@ function _M.file_strip_ext(filename)
 	return filename:match("(.+)%..+$") or filename
 end
 
+function _M.random_string(len)
+	local charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+    local s = {}
+	math.randomseed(os.time())
+    for i = 1, len do
+        local idx = math.random(1, #charset)
+        s[i] = charset:sub(idx, idx)
+    end
+    return table.concat(s)
+end
+
+function _M.random_filename(ext)
+	ext = ext or tmp
+	return _M.random_string(12) .. "." .. ext
+end
+
 function _M.print_table(t)
     for k, v in pairs(t) do
         if type(v) == "table" then
