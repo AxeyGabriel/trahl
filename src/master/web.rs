@@ -1,6 +1,5 @@
 use tokio::time::{sleep, Duration};
 use std::sync::Arc;
-use tracing::info;
 
 use super::MasterCtx;
 

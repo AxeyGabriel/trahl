@@ -203,7 +203,7 @@ async fn msg_from_peer(peer: &mut PeerInfo, msg: Message) {
 
                     },
                     RpcJobStatus::Done { file } => {
-                        info!("Job {} completed successfuly on worker {}", msg.job_id, peer.info.identifier);
+                        info!("Job {} completed successfuly on worker {}, output={:?}", msg.job_id, peer.info.identifier, file);
                         job_tracking.status = JobStatus::Success;
                     },
                     RpcJobStatus::Copying => {

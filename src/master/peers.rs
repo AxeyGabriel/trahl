@@ -1,4 +1,4 @@
-use tracing::{info, warn};
+use tracing::{warn};
 use std::time::Instant;
 use tokio::sync::mpsc;
 use tokio::time::{interval, Duration};
@@ -20,17 +20,10 @@ pub struct Peer {
     socket_id: PeerId,
     params: WorkerInfo,
     last_seen: Instant,
-    state: State,
     tx_to_socket: mpsc::Sender<TxSocketMsg>,
     rx_from_socket: mpsc::Receiver<RxSocketMsg>,
     tx_to_manager: mpsc::Sender<TxManagerMsg>,
     rx_from_manager: mpsc::Receiver<RxManagerMsg>,
-}
-
-#[derive(Debug)]
-enum State {
-    NotReady,
-    Configured,
 }
 
 impl Peer {
@@ -44,7 +37,6 @@ impl Peer {
     ) -> Self {
         Peer {
             last_seen: Instant::now(),
-            state: State::NotReady,
             socket_id,
             params: hello,
             tx_to_socket,

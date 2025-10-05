@@ -1,4 +1,4 @@
-use mlua::{Error, Lua, LuaSerdeExt, Result, Table, Value, AnyUserData};
+use mlua::{Error, Lua, LuaSerdeExt, Result, Table, Value};
 use tokio::process::Command;
 use std::path::PathBuf;
 use std::process::Stdio;
@@ -8,12 +8,11 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 use tracing::{error, info};
 
 use crate::extcmd::ffprobe::{ffprobe, FFProbeError};
-use crate::lua::{OutChannelWrapper, TrahlRuntimeCtx};
+use crate::lua::TrahlRuntimeCtx;
 use crate::rpc::{JobStatusMsg, JobStatus, TranscodeProgress};
 
 pub async fn _ffprobe(luactx: Lua, mediapath: String) -> Result<Value> {
-    let runtimectx = TrahlRuntimeCtx::get_ref(&luactx)?;
-    let ffprobe_cmd = runtimectx.
+    let runtimectx = TrahlRuntimeCtx::get_ref(&luactx)?.clone();
 
     let cmdpath = PathBuf::from("ffprobe");
     let mediapath = PathBuf::from(mediapath);
@@ -24,12 +23,15 @@ pub async fn _ffprobe(luactx: Lua, mediapath: String) -> Result<Value> {
         },
         Err(FFProbeError::Failed(e)) => {
             let msg = JobStatusMsg {
-                job_id: job_id,
+                job_id: runtimectx.job_id,
                 status: JobStatus::Log {
                     line: e.to_string()
                 }
             };
-            _ = tx_wrapper.tx.send(msg).await.map_err(Error::external);
+            runtimectx.status_tx
+                .send(msg)
+                .await
+                .map_err(Error::external)?;
             Err(Error::external(e))
         },
         Err(e) => {
@@ -68,11 +70,7 @@ pub async fn _ffmpeg(luactx: Lua, (duration, args): (f64, Table)) -> Result<()> 
     let mut reader = BufReader::new(stdout).lines();
     let mut block = HashMap::new();
     
-    let job_id_str = luactx.named_registry_value::<String>("job_id")?;
-    let job_id: u128 = job_id_str.parse().expect("Error parsing job_id");
-    
-    let ud = luactx.named_registry_value::<AnyUserData>("out_channel")?;
-    let tx_wrapper = ud.borrow::<OutChannelWrapper>()?;
+    let runtimectx = TrahlRuntimeCtx::get_ref(&luactx)?.clone();
 
     loop {
         tokio::select! {
@@ -82,14 +80,13 @@ pub async fn _ffmpeg(luactx: Lua, (duration, args): (f64, Table)) -> Result<()> 
                         if line.trim().is_empty() {
                             continue;
                         }
-
                         let msg = JobStatusMsg {
-                            job_id: job_id,
+                            job_id: runtimectx.job_id,
                             status: JobStatus::Log {
                                 line: line
                             }
                         };
-                        _ = tx_wrapper.tx.send(msg).await.map_err(Error::external);
+                        runtimectx.status_tx.send(msg).await.map_err(Error::external)?;
                     },
                     Ok(None) => {}
                     Err(_) => {}
@@ -137,10 +134,13 @@ pub async fn _ffmpeg(luactx: Lua, (duration, args): (f64, Table)) -> Result<()> 
                                 };
 
                                 let msg = JobStatusMsg {
-                                    job_id: job_id,
+                                    job_id: runtimectx.job_id,
                                     status: JobStatus::Progress(tp)
                                 };
-                                _ = tx_wrapper.tx.send(msg).await.map_err(Error::external);
+                                runtimectx.status_tx
+                                    .send(msg)
+                                    .await
+                                    .map_err(Error::external)?;
 
                                 block.clear();
                                 if v == "end" {
