@@ -46,18 +46,26 @@ impl JobRunner {
 
         let handle = tokio::spawn(async move {
             while let Some(msg) = rx.recv().await {
+                let job_id_clone = msg.spec.job_id;
                 let job = Job::new(
                     msg.spec,
                     tmpdir_clone.clone(),
                     remaps_clone.clone(),
                     msg.status_tx.clone(),
                 ).await;
+
                 match job {
                     Ok(job) => {
                         task::spawn(job.run());
                     },
                     Err(e) => {
-
+                        let err_str = format!("Job {} failed: {}", job_id_clone, e);
+                        error!(err_str);
+                        let _ = msg.status_tx.send(JobStatusMsg {
+                            job_id: job_id_clone,
+                            status: JobStatus::Error { descr: e.to_string() }})
+                            .await
+                            .inspect_err(|e| { error!("Error sending message: {}", e) });
                     }
                 }
             }
@@ -72,7 +80,7 @@ impl JobRunner {
             status_tx,
         };
 
-        let _ = self.tx.send(msg).await.map_err(|_| "Runner closed");
+        let _ = self.tx.send(msg).await.inspect_err(|_| error!("Runner closed"));
     }
 }
 
