@@ -1,16 +1,14 @@
-use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use anyhow::anyhow;
 use tempfile::TempDir;
 use tokio::sync::mpsc;
 use tokio::task::{self, JoinHandle};
-use mlua::Lua;
 use tracing::{info, error};
 
 use crate::config::FsRemap;
 use crate::lua::{TrahlRuntime, TrahlRuntimeBuilder};
-use crate::rpc::{JobMsg, JobStatus, JobStatusMsg};
+use crate::rpc::{JobMsg, JobStatusMsg};
 use crate::utils;
 
 struct RunnerMessage {
@@ -56,14 +54,19 @@ impl JobRunner {
 
                 match job {
                     Ok(job) => {
+                        let _ = msg.status_tx.send(JobStatusMsg::job_ack(job_id_clone))
+                            .await
+                            .inspect_err(|e| { 
+                                error!("Error sending message: {}", e)
+                            });
                         task::spawn(job.run());
                     },
                     Err(e) => {
                         let err_str = format!("Job {} failed: {}", job_id_clone, e);
                         error!(err_str);
-                        let _ = msg.status_tx.send(JobStatusMsg {
-                            job_id: job_id_clone,
-                            status: JobStatus::Error { descr: e.to_string() }})
+                        let _ = msg.status_tx.send(
+                                JobStatusMsg::job_declined(job_id_clone, e.to_string())
+                            )
                             .await
                             .inspect_err(|e| { error!("Error sending message: {}", e) });
                     }
@@ -103,10 +106,11 @@ impl Job {
             Err(e) => {
                 let err_str = format!("Job {} failed: {}", spec.job_id, e);
                 error!(err_str);
-                status_tx.send(JobStatusMsg {
-                    job_id: spec.job_id,
-                    status: JobStatus::Error{ descr: e.to_string() },
-                }).await.map_err(|e| anyhow!("status_tx failed: {}", e))?;
+                status_tx.send(
+                        JobStatusMsg::job_error(spec.job_id, err_str.clone())
+                    )
+                    .await
+                    .map_err(|e| anyhow!("status_tx failed: {}", e))?;
                 return Err(anyhow!(err_str));
             }
         };
@@ -162,22 +166,17 @@ impl Job {
                         if !file.exists() {
                             let log = format!("File {} does not exist!", file.display());
                             error!("{}", log);
-                            if let Err(se) = self.status_tx.send(JobStatusMsg {
-                                job_id: self.spec.job_id,
-                                status: JobStatus::Error { descr: log },
-                            }).await {
-                                error!("Error while sending message: {}", se);
-                            } 
+                            let _ = self.status_tx.send(
+                                    JobStatusMsg::job_error(self.spec.job_id, log)
+                                ).await
+                                .inspect_err(|e| { error!("Error sending message: {}", e) });
                             return;
                         }
 
-                        if let Err(se) = self.status_tx.send(JobStatusMsg {
-                            job_id: self.spec.job_id,
-                            status: JobStatus::Copying,
-                        }).await {
-                            error!("Error while sending message: {}", se);
-                            return;
-                        }
+                        let _ = self.status_tx.send(
+                                JobStatusMsg::job_copying(self.spec.job_id)
+                            ).await
+                            .inspect_err(|e| { error!("Error sending message: {}", e) });
 
                         let original_file_remapped = utils::remap_to_worker(Path::new(&self.spec.file), &self.remaps);
                         let library_root_remapped = utils::remap_to_worker(Path::new(&self.spec.library_root), &self.remaps);
@@ -193,12 +192,10 @@ impl Job {
                                 {
                                     Ok(d) => d,
                                     Err(e) => {
-                                        if let Err(se) = self.status_tx.send(JobStatusMsg {
-                                            job_id: self.spec.job_id,
-                                            status: JobStatus::Error { descr: e.to_string() },
-                                        }).await {
-                                            error!("Error while sending message: {}", se);
-                                        }
+                                        let _ = self.status_tx.send(
+                                                JobStatusMsg::job_error(self.spec.job_id, e.to_string())
+                                            ).await
+                                            .inspect_err(|e| { error!("Error sending message: {}", e) });
                                         return;
                                     }
                                 };
@@ -215,12 +212,10 @@ impl Job {
                                 result = Some(self.spec.file);
                             },
                             _ => {
-                                if let Err(se) = self.status_tx.send(JobStatusMsg {
-                                    job_id: self.spec.job_id,
-                                    status: JobStatus::Error { descr: "Unknown output mode".to_string() },
-                                }).await {
-                                    error!("Error while sending message: {}", se);
-                                }
+                                let _ = self.status_tx.send(
+                                        JobStatusMsg::job_error(self.spec.job_id, "Unknown output mode".to_string())
+                                    ).await
+                                    .inspect_err(|e| { error!("Error sending message: {}", e) });
                                 return;
                             }
                         }
@@ -228,21 +223,17 @@ impl Job {
                     _ => {},
                 };
 
-                if let Err(se) = self.status_tx.send(JobStatusMsg {
-                    job_id: self.spec.job_id,
-                    status: JobStatus::Done { file: result },
-                }).await {
-                    error!("Error while sending message: {}", se);
-                }
+                let _ = self.status_tx.send(
+                        JobStatusMsg::job_done(self.spec.job_id, result)
+                    ).await
+                    .inspect_err(|e| { error!("Error sending message: {}", e) });
             }
             Err(e) => {
                 error!("Job {} failed: {}", self.spec.job_id, e);
-                if let Err(se) = self.status_tx.send(JobStatusMsg {
-                    job_id: self.spec.job_id,
-                    status: JobStatus::Error { descr: e.to_string() },
-                }).await {
-                    error!("Error while sending message: {}", se);
-                }
+                let _ = self.status_tx.send(
+                        JobStatusMsg::job_error(self.spec.job_id, e.to_string())
+                    ).await
+                    .inspect_err(|e| { error!("Error sending message: {}", e) });
             }
         }
     }

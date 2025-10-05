@@ -70,12 +70,12 @@ impl Peer {
                     self.message_from_socket(msg).await;
                 },
                 _ = keepalive_timer.tick() => {
-                    self.send_to_socket(Message::Ping).await;
+                    self.send_to_socket(Message::ping()).await;
 
                     if self.last_seen.elapsed() >= Duration::from_secs(5) {
                         // Socket timed out, abort
                         warn!("Peer {} timed out", self.params.identifier);
-                        self.send_to_socket(Message::Bye).await;
+                        self.send_to_socket(Message::bye()).await;
                     }
                 }
             }
@@ -88,6 +88,13 @@ impl Peer {
     }
     
     async fn message_from_socket(&mut self, msg: RxSocketMsg) {
-        self.send_to_manager(msg).await;
+        match msg {
+            Message::Pong => {
+                // nothing to do
+            },
+            _ => {
+                self.send_to_manager(msg).await;
+            },
+        }
     }
 }

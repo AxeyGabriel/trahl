@@ -1,6 +1,6 @@
 pub mod zmq_helper;
 
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use std::collections::HashMap;
 use bincode::{Decode, Encode};
 
@@ -21,6 +21,40 @@ pub enum Message {
     Bye,
 }
 
+impl Message {
+    pub fn hello(wi: WorkerInfo) -> Self {
+        Self::Hello(wi)
+    }
+    
+    pub fn ack() -> Self {
+        Self::HelloAck
+    }
+    
+    pub fn cancel_jobs() -> Self {
+        Self::CancelJobs
+    }
+    
+    pub fn job_status(jsm: JobStatusMsg) -> Self {
+        Self::JobStatus(jsm)
+    }
+    
+    pub fn job(jm: JobMsg) -> Self {
+        Self::Job(jm)
+    }
+    
+    pub fn ping() -> Self {
+        Self::Ping
+    }
+    
+    pub fn pong() -> Self {
+        Self::Pong
+    }
+    
+    pub fn bye() -> Self {
+        Self::Bye
+    }
+}
+
 #[derive(Debug, Encode, Decode, Clone, PartialEq)]
 pub struct WorkerInfo {
     pub identifier: String,
@@ -39,22 +73,67 @@ pub struct JobMsg {
 
 #[derive(Debug, Encode, Decode, Clone, PartialEq)]
 pub struct JobStatusMsg {
+    pub timestamp: u64,
     pub job_id: u128,
     pub status: JobStatus,
 }
 
+impl JobStatusMsg {
+    fn new(job_id: u128, status: JobStatus) -> Self {
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+
+        Self {
+            timestamp,
+            job_id,
+            status
+        }
+    }
+    
+    pub fn job_ack(job_id: u128) -> Self {
+        JobStatusMsg::new(job_id, JobStatus::Ack)
+    }
+    
+    pub fn job_declined(job_id: u128, reason: String) -> Self {
+        JobStatusMsg::new(job_id, JobStatus::Declined(reason))
+    }
+    
+    pub fn job_progress(job_id: u128, tp: TranscodeProgress) -> Self {
+        JobStatusMsg::new(job_id, JobStatus::Progress(tp))
+    }
+    
+    pub fn job_copying(job_id: u128) -> Self {
+        JobStatusMsg::new(job_id, JobStatus::Copying)
+    }
+    
+    pub fn job_milestone(job_id: u128, m: String) -> Self {
+        JobStatusMsg::new(job_id, JobStatus::Milestone(m))
+    }
+    
+    pub fn job_log(job_id: u128, l: String) -> Self {
+        JobStatusMsg::new(job_id, JobStatus::Log(l))
+    }
+    
+    pub fn job_error(job_id: u128, e: String) -> Self {
+        JobStatusMsg::new(job_id, JobStatus::Error(e))
+    }
+    
+    pub fn job_done(job_id: u128, file: Option<String>) -> Self {
+        JobStatusMsg::new(job_id, JobStatus::Done {file})
+    }
+}
+
 #[derive(Debug, Encode, Decode, Clone, PartialEq)]
 pub enum JobStatus {
-    Sent,
     Ack,
+    Declined(String),
     Progress(TranscodeProgress),
     Copying,
-    Log {
-        line: String,
-    },
-    Error {
-        descr: String,
-    },
+    Milestone(String),
+    Log(String),
+    Error(String),
     Done {
         file: Option<String>,
     },

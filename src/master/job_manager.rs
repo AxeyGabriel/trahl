@@ -44,6 +44,7 @@ impl PeerInfo {
 enum JobStatus {
     Sent,
     Acknowledged,
+    Declined(String),
     InProgress(TranscodeProgress),
     Failed(String),
     Copying,
@@ -127,7 +128,7 @@ impl JobManager {
 
                             info!("Sent job id {} to worker {}", jobmsg.job_id, peer.info.identifier);
                             
-                            let msg = Message::Job(jobmsg); 
+                            let msg = Message::job(jobmsg); 
                             _ = peer.tx.send(msg).await;
 
                             peer.jobs.insert(job.id, JobTracking { log: Vec::new(), status: JobStatus::Sent });
@@ -188,16 +189,20 @@ async fn msg_from_peer(peer: &mut PeerInfo, msg: Message) {
                         debug!("Job {} ack on worker {}", msg.job_id, peer.info.identifier);
                         job_tracking.status = JobStatus::Acknowledged;
                     },
+                    RpcJobStatus::Declined(reason) => {
+                        debug!("Job {} declined on worker {}: {}", msg.job_id, peer.info.identifier, reason);
+                        job_tracking.status = JobStatus::Declined(reason);
+                    },
                     RpcJobStatus::Progress(p) => {
                         debug!("Job {} progress: {:#?}", msg.job_id, p);
                         job_tracking.status = JobStatus::InProgress(p);
                     },
-                    RpcJobStatus::Log {line} => {
+                    RpcJobStatus::Log(line) => {
                         debug!("Job {} log: {}", msg.job_id, line);
                         job_tracking.log
                             .push(line);
                     },
-                    RpcJobStatus::Error {descr} => {
+                    RpcJobStatus::Error(descr) => {
                         error!("Job {} failed on worker {}: {}", msg.job_id, peer.info.identifier, descr);
                         job_tracking.status = JobStatus::Failed(descr);
 

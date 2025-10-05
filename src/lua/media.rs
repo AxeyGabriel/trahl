@@ -9,7 +9,7 @@ use tracing::{error, info};
 
 use crate::extcmd::ffprobe::{ffprobe, FFProbeError};
 use crate::lua::TrahlRuntimeCtx;
-use crate::rpc::{JobStatusMsg, JobStatus, TranscodeProgress};
+use crate::rpc::{JobStatusMsg, TranscodeProgress};
 
 pub async fn _ffprobe(luactx: Lua, mediapath: String) -> Result<Value> {
     let runtimectx = TrahlRuntimeCtx::get_ref(&luactx)?.clone();
@@ -22,14 +22,8 @@ pub async fn _ffprobe(luactx: Lua, mediapath: String) -> Result<Value> {
             luactx.to_value(&json)
         },
         Err(FFProbeError::Failed(e)) => {
-            let msg = JobStatusMsg {
-                job_id: runtimectx.job_id,
-                status: JobStatus::Log {
-                    line: e.to_string()
-                }
-            };
             runtimectx.status_tx
-                .send(msg)
+                .send(JobStatusMsg::job_log(runtimectx.job_id, e.to_string()))
                 .await
                 .map_err(Error::external)?;
             Err(Error::external(e))
@@ -80,13 +74,10 @@ pub async fn _ffmpeg(luactx: Lua, (duration, args): (f64, Table)) -> Result<()> 
                         if line.trim().is_empty() {
                             continue;
                         }
-                        let msg = JobStatusMsg {
-                            job_id: runtimectx.job_id,
-                            status: JobStatus::Log {
-                                line: line
-                            }
-                        };
-                        runtimectx.status_tx.send(msg).await.map_err(Error::external)?;
+                        runtimectx.status_tx
+                            .send(JobStatusMsg::job_log(runtimectx.job_id, line))
+                            .await
+                            .map_err(Error::external)?;
                     },
                     Ok(None) => {}
                     Err(_) => {}
@@ -133,12 +124,8 @@ pub async fn _ffmpeg(luactx: Lua, (duration, args): (f64, Table)) -> Result<()> 
                                     speed: speed
                                 };
 
-                                let msg = JobStatusMsg {
-                                    job_id: runtimectx.job_id,
-                                    status: JobStatus::Progress(tp)
-                                };
                                 runtimectx.status_tx
-                                    .send(msg)
+                                    .send(JobStatusMsg::job_progress(runtimectx.job_id, tp))
                                     .await
                                     .map_err(Error::external)?;
 

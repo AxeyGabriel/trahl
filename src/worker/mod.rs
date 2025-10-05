@@ -10,7 +10,7 @@ use tokio::time::{sleep, Duration};
 use std::sync::{Arc, RwLock};
 
 use crate::config::SystemConfig;
-use crate::rpc::{JobStatus, JobStatusMsg, Message};
+use crate::rpc::{JobStatusMsg, Message};
 use crate::{CONFIG, S_TERMINATE, S_RELOAD};
 use jobrunner::JobRunner;
 use rpc_client::rpc_client;
@@ -86,16 +86,11 @@ async fn worker_runtime() {
                             info!("Successfuly connected to master");
                         },
                         Message::Ping => {
-                            _ = tx_to_socket.send(Message::Ping).await;
+                            _ = tx_to_socket.send(Message::pong()).await;
                         },
                         Message::Job(jobmsg) => {
                             info!("Job received: {}", jobmsg.job_id);
-                            let job_id = jobmsg.job_id.clone();
                             job_runner.spawn_job(jobmsg, tx_from_job.clone()).await;
-                            _ = tx_to_socket.send(Message::JobStatus(JobStatusMsg {
-                                job_id: job_id,
-                                status: JobStatus::Ack,
-                            })).await;
                         },
                         _ => {
                             info!("Unknown message received: {:#?}", msg);
@@ -103,7 +98,7 @@ async fn worker_runtime() {
                     }
                 },
                 Some(msg) = rx_from_job.recv() => {
-                    let msg = Message::JobStatus(msg);
+                    let msg = Message::job_status(msg);
                     _ = tx_to_socket.send(msg).await;
                 },
                 _ = ch_term.changed() => {

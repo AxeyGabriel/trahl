@@ -33,7 +33,7 @@ pub async fn rpc_client(
 
     info!("Connected to master at {}", master_addr);
 
-    let msg = Message::Hello(WorkerInfo {
+    let msg = Message::hello(WorkerInfo {
         identifier: worker_config.identifier,
         simultaneous_jobs: worker_config.parallel_jobs,
     });
@@ -75,7 +75,7 @@ pub async fn rpc_client(
 
 
     info!("Disconnected");
-    let msg = Message::Bye;
+    let msg = Message::bye();
     let _ = zmq_helper::send_msg(
             &mut socket,
             None,

@@ -21,7 +21,7 @@ use media::{
     _ffmpeg,
 };
 
-use crate::rpc::{JobStatusMsg, JobStatus};
+use crate::rpc::JobStatusMsg;
 
 const UTIL_LUA: &str = include_str!("../lualib/util.lua");
 
@@ -186,10 +186,7 @@ async fn _log(luactx: Lua, (level, msg): (u8, String)) -> Result<()> {
         _ => info!(target: "lua", "{}", msg),
     }
     let runtimectx = TrahlRuntimeCtx::get_ref(&luactx)?.clone();
-    let msg = JobStatusMsg {
-        job_id: runtimectx.job_id,
-        status: JobStatus::Log { line: msg }
-    };
+    let msg = JobStatusMsg::job_log(runtimectx.job_id, msg);
     runtimectx.status_tx.send(msg).await.map_err(Error::external)?;
     Ok(())
 }

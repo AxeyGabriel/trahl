@@ -103,6 +103,7 @@ impl SocketServer {
                                             tx_manager_to_peer,
                                             hm,
                                         )).await;
+                                        let _ = tx_peer_to_sock.send((peer_id.to_owned(), Message::ack())).await;
                                     }
                                 }
                                 Message::Bye => {
@@ -171,7 +172,7 @@ impl SocketServer {
             )).await;
 
             //let _ = tx_peer_to_sock.send((peer_id.to_owned(), Message::Bye)).await;
-            let _ = zmq_helper::send_msg(&mut router, Some(&peer_id), &Message::Bye).await;
+            let _ = zmq_helper::send_msg(&mut router, Some(&peer_id), &Message::bye()).await;
 
             ph.abort();
         }
