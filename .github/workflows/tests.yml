@@ -64,7 +64,17 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-build-
 
+      - name: Cache cargo bin
+        id: cargo-bin-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin
+          key: cargo-bin-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          cargo-bin-${{ runner.os }}-
+
       - name: Install cargo-nextest
+        if: steps.cargo-bin-cache.outputs.cache-hit != 'true'
         run: cargo install cargo-nextest
 
       - name: Run tests with nextest
