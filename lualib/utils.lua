@@ -14,7 +14,7 @@ function _M.file_name(path)
 	return path:match("^.+/(.+)$")
 end
 
-function _M.file_strip_ext(filename)
+function _M.strip_ext(filename)
 	return filename:match("(.+)%..+$") or filename
 end
 
@@ -27,11 +27,6 @@ function _M.random_string(len)
         s[i] = charset:sub(idx, idx)
     end
     return table.concat(s)
-end
-
-function _M.random_filename(ext)
-	ext = ext or tmp
-	return _M.random_string(12) .. "." .. ext
 end
 
 function _M.print_table(t)
@@ -50,36 +45,6 @@ function _M.panic(str)
 	error(str)
 end
 
-function _M.discord_message(url, str)
-	if not url or not str then
-		_trahl.log(_trahl.ERROR, "Discord webhook failed: invalid url or message")
-		return false
-	end
-
-    local headers = {
-        ["Content-Type"] = "application/json"
-    }
-
-    local raw_body = json.encode({ content = str })
-
-    local ok, status, body = pcall(function()
-        return _trahl.http_request("POST", url, headers, raw_body)
-    end)
-
-	if not ok then
-		_trahl.log(_trahl.ERROR, "Discord webhook failed (pcall error)")
-		return false
-	end
-
-	local success = status >= 200 and status < 300
-	if not success then
-		_trahl.log(_trahl.ERROR, "Failed to send message to discord: status: " .. tostring(status) .. " body: " .. tostring(body))
-	end
-
-    return success
-end
-
--- Utility: safe pattern test
 function _M.matches_regex(text, pattern)
     if not pattern or pattern == "" then
         return false

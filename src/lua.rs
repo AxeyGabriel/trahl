@@ -27,7 +27,8 @@ use regex::{
 
 use crate::rpc::JobStatusMsg;
 
-const UTIL_LUA: &str = include_str!("../lualib/util.lua");
+const UTILS_LUA: &str = include_str!("../lualib/utils.lua");
+const INTEGRATIONS_LUA: &str = include_str!("../lualib/integrations.lua");
 
 pub struct TrahlRuntimeCtx {
     status_tx: mpsc::Sender<JobStatusMsg>,
@@ -101,7 +102,8 @@ impl TrahlRuntimeBuilder {
             Ok(())
         };
 
-        register_module("util", UTIL_LUA)?;
+        register_module("utils", UTILS_LUA)?;
+        register_module("integrations", INTEGRATIONS_LUA)?;
 
         let table_trahl = luactx.create_table()?;
         let table_vars = luactx.create_table()?;
