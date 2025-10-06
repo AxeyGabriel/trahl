@@ -33,15 +33,15 @@ end
 EOF
 
 cat > "$TARGET_DIR/test_transcode.lua" <<EOF
-local util = require("util")
+local UTILS = require("utils")
+local INTEGRATIONS = require("integrations")
 
 local vars      = _trahl.vars
 local srcfile   = vars.SRCFILE
 local cachedir  = vars.CACHEDIR
 local dstdir    = vars.DSTDIR
 local remuxed   = string.format("%s/remux.mkv", cachedir)
-local outfile   = string.format("%s/%s.mkv", cachedir, util.file_strip_ext(util.file_name(srcfile)))
-local webhook   = "https://discord.com/api/webhooks/1424573662727770142/6XS6thPfs_YOvOtClRfY72f50R78E44yIdmhKRb3BZAEIhgRQXAna_Ifs0HEbPiqqfF4"
+local outfile   = string.format("%s/%s.mkv", cachedir, UTILS.strip_ext(UTILS.file_name(srcfile)))
 
 -- FFmpeg argument builders
 local function build_remux_args(input, output)
@@ -66,7 +66,7 @@ local function run_ffmpeg(stage, duration, args)
         return _trahl.ffmpeg(duration, args)
     end)
     if not ok then
-        util.panic(string.format("FFmpeg failed during %s: %s", stage, err or "unknown error"))
+        UTILS.panic(string.format("FFmpeg failed during %s: %s", stage, err or "unknown error"))
     end
 end
 
@@ -78,9 +78,9 @@ local duration = tonumber(stream.duration) or 0
 local codec = (stream.codec_long_name or ""):lower()
 
 -- Step 2: Skip if already HEVC
-if util.matches_regex(codec, "(hevc|h.265)") then
+if UTILS.matches_regex(codec, "(hevc|h.265)") then
     _trahl.log(_trahl.INFO, "Codec is already H.265, skipping transcode")
-    util.discord_message(webhook, string.format("✅ %s is already H.265", util.file_name(srcfile)))
+    INTEGRATIONS.discord_message(webhook, string.format("✅ %s is already H.265", UTILS.file_name(srcfile)))
     return
 end
 
@@ -93,5 +93,5 @@ run_ffmpeg("Transcoding", duration, build_transcode_args(remuxed, outfile))
 
 -- Step 5: Output
 _trahl.set_output(outfile, _trahl.O_PRESERVE_DIR)
-util.discord_message(webhook, string.format("🎬 Transcoding complete: %s", util.file_name(outfile)))
+INTEGRATIONS.discord_message(webhook, string.format("🎬 Transcoding complete: %s", UTILS.file_name(outfile)))
 EOF
