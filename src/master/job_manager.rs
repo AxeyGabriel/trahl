@@ -22,23 +22,14 @@ struct PeerInfo {
 }
 
 impl PeerInfo {
-    fn active_job_count(&self) -> usize {
+    fn active_jobs(&self) -> Vec<&JobTracking> {
         self.jobs
             .values()
             .filter(|j| matches!(
                 j.status,
                 JobStatus::Sent | JobStatus::Running
             ))
-            .count()
-    }
-    
-    fn active_jobs(&self) -> impl Iterator<Item = &JobTracking> {
-        self.jobs
-            .values()
-            .filter(|j| matches!(
-                j.status,
-                JobStatus::Sent | JobStatus::Running
-            ))
+            .collect()
     }
 }
 
@@ -112,8 +103,8 @@ impl JobManager {
                 _ = dispatch_timer.tick() => {
                     let selected_peer = self.peer_registry
                         .iter_mut()
-                        .filter(|(_, p)| p.active_job_count() < p.info.simultaneous_jobs.into())
-                        .min_by_key(|(_, p)| p.active_job_count());
+                        .filter(|(_, p)| p.active_jobs().len() < p.info.simultaneous_jobs.into())
+                        .min_by_key(|(_, p)| p.active_jobs().len());
 
                     if let Some((_id, peer)) = selected_peer {
                         if let Some(job) = self.pending_jobs.pop_front() {
@@ -143,10 +134,7 @@ impl JobManager {
                     }
                 },
                 Some(job) = self.rx_job.recv() => {
-                    if self.dedup_jobs.insert(job.src_file.clone()) {
-                        info!("Received job for file {}", job.src_file.display());
-                        self.pending_jobs.push_back(job);
-                    }
+                    self.dedup_schedule_job(job).await;
                 },
                 Some((peer_id, msg)) = self.rx_from_peer.recv() => {
                     if let Some(peer) = self.peer_registry.get_mut(&peer_id) {
@@ -167,12 +155,12 @@ impl JobManager {
                         },
                         SocketEvent::PeerDisconnected(peer_id) => {
                             if let Some(peer) = self.peer_registry.get(&peer_id) {
-                                for job in peer.active_jobs() {
-                                    let contract = job.contract.clone();
-                                    if self.dedup_jobs.insert(job.contract.src_file.clone()) {
-                                        info!("Rescheduled job for file {}", job.contract.src_file.display());
-                                        self.pending_jobs.push_back(contract);
-                                    }
+                                let active_jobs: Vec<JobContract> = peer.active_jobs()
+                                    .iter()
+                                    .map(|job| job.contract.clone())
+                                    .collect();
+                                for job in active_jobs {
+                                    self.dedup_schedule_job(job).await;
                                 }
                             }
                             self.peer_registry.remove(&peer_id);
@@ -195,6 +183,15 @@ impl JobManager {
                     }
                 }
             );
+        }
+    }
+
+    async fn dedup_schedule_job(&mut self, job: JobContract) {
+        if self.dedup_jobs.insert(job.src_file.clone()) {
+            info!("Received job for file {}", job.src_file.display());
+            self.pending_jobs.push_back(job);
+        } else {
+            debug!("Skipping duplicated job for {}", job.src_file.display());
         }
     }
 }
@@ -228,11 +225,12 @@ async fn msg_from_peer(peer: &mut PeerInfo, msg: Message) {
                     RpcJobStatus::Error(descr) => {
                         error!("Job {} failed on worker {}: {}", msg.job_id, peer.info.identifier, descr);
                         job_tracking.status = JobStatus::Ended;
-
+                        //todo! signal job discovery system
                     },
                     RpcJobStatus::Done { file } => {
                         info!("Job {} completed successfuly on worker {}, output={:?}", msg.job_id, peer.info.identifier, file);
                         job_tracking.status = JobStatus::Ended;
+                        //todo! signal job discovery system
                     },
                     RpcJobStatus::Copying => {
                         info!("Job {} is copying files on worker {}", msg.job_id, peer.info.identifier);
