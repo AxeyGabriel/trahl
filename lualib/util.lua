@@ -79,4 +79,16 @@ function _M.discord_message(url, str)
     return success
 end
 
+-- Utility: safe pattern test
+function _M.matches_regex(text, pattern)
+    if not pattern or pattern == "" then
+        return false
+    end
+	
+	local ok, matched = pcall(function()
+        return _trahl.regex_match(text, pattern)
+    end)
+    return ok and matched
+end
+
 return _M

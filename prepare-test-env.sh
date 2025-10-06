@@ -41,7 +41,7 @@ local cachedir  = vars.CACHEDIR
 local dstdir    = vars.DSTDIR
 local remuxed   = string.format("%s/remux.mkv", cachedir)
 local outfile   = string.format("%s/%s.mkv", cachedir, util.file_strip_ext(util.file_name(srcfile)))
-local webhook   = "https://discord.com/api/webhooks/1422425509999935583/h5mDwqjxXW59abMokj1_mOCO2INiFfeEdYixKgknVl_He2N3XxhX2muZQvZu_qQakjtw"
+local webhook   = "https://discord.com/api/webhooks/1424573662727770142/6XS6thPfs_YOvOtClRfY72f50R78E44yIdmhKRb3BZAEIhgRQXAna_Ifs0HEbPiqqfF4"
 
 -- FFmpeg argument builders
 local function build_remux_args(input, output)
@@ -78,7 +78,7 @@ local duration = tonumber(stream.duration) or 0
 local codec = (stream.codec_long_name or ""):lower()
 
 -- Step 2: Skip if already HEVC
-if codec:find("hevc") or codec:find("h.265") then
+if util.matches_regex(codec, "(hevc|h.265)") then
     _trahl.log(_trahl.INFO, "Codec is already H.265, skipping transcode")
     util.discord_message(webhook, string.format("✅ %s is already H.265", util.file_name(srcfile)))
     return

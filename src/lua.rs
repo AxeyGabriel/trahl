@@ -2,6 +2,7 @@ mod http;
 mod serialization;
 mod time;
 mod media;
+mod regex;
 
 use std::{collections::HashMap, sync::Weak};
 
@@ -19,6 +20,9 @@ use time::{
 use media::{
     _ffprobe,
     _ffmpeg,
+};
+use regex::{
+    _regex_match
 };
 
 use crate::rpc::JobStatusMsg;
@@ -148,6 +152,7 @@ fn create_ffis(luactx: &Lua, table: &Table) -> Result<()> {
     let ffi_ffmpeg = luactx.create_async_function(_ffmpeg)?;
     let ffi_setoutput = luactx.create_async_function(_set_output)?;
     let ffi_milestone = luactx.create_async_function(_milestone)?;
+    let ffi_regex_match = luactx.create_function(_regex_match)?;
 
     table.set("INFO", 1)?;
     table.set("WARN", 2)?;
@@ -162,6 +167,7 @@ fn create_ffis(luactx: &Lua, table: &Table) -> Result<()> {
     table.set("ffprobe", ffi_ffprobe)?;
     table.set("ffmpeg", ffi_ffmpeg)?;
     table.set("milestone", ffi_milestone)?;
+    table.set("regex_match", ffi_regex_match)?;
     
     table.set("O_PRESERVE_DIR", 1)?;
     table.set("O_FLAT", 2)?;
