@@ -110,8 +110,16 @@ pub async fn _ffmpeg(luactx: Lua, (duration, args): (f64, Table)) -> Result<()> 
                                 });
 
                                 let eta = cur_time.and_then(|ct| speed.map(|s| {
-                                    let remaining = total_duration.saturating_sub(ct);
-                                    Duration::from_secs_f64(remaining.as_secs_f64() / s)
+                                    if let Some(pct) = percentage {
+                                        if (pct - 100.0).abs() < f64::EPSILON {
+                                            Duration::from_secs(0)
+                                        } else {
+                                            let remaining = total_duration.saturating_sub(ct);
+                                            Duration::from_secs_f64(remaining.as_secs_f64() / s)
+                                        }
+                                    } else {
+                                        Duration::from_secs(0)
+                                    }
                                 }));
 
                                 let tp = TranscodeProgress {

@@ -1,5 +1,6 @@
 use std::path::{Path, PathBuf};
 use tokio::fs;
+use uuid::Uuid;
 use crate::config::FsRemap;
 use anyhow::Result;
 
@@ -51,4 +52,12 @@ pub async fn copy_preserve_structure(
     fs::copy(src_file, &dst_path).await?;
 
     Ok(dst_path)
+}
+
+pub fn uuid_to_u128(value: Uuid) -> u128 {
+    u128::from_be_bytes(*value.as_bytes())
+}
+
+pub fn u128_to_uuid(value: u128) -> Uuid {
+    Uuid::from_bytes(value.to_be_bytes())
 }
