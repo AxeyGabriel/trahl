@@ -71,7 +71,7 @@ function _M.sonarr_scan(path, api_addr, api_token)
 	}
 
 	local body = json.encode({
-		name = "DownloadedMoviesScan",
+		name = "DownloadedEpisodesScan",
 		path = path
 	})
 
