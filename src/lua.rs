@@ -301,7 +301,7 @@ mod tests {
         });
         
         let code = r#"
-            local c = require("util")
+            local c = require("utils")
         "#;
 
         let lua = TrahlRuntimeBuilder::new(
@@ -329,7 +329,7 @@ mod tests {
         });
         
         let code = format!(r#"
-        local c = require("util")
+        local c = require("utils")
         local size = c.file_size("{}/{}")
         print("File size is " .. size .. "bytes")
         "#, env!("CARGO_MANIFEST_DIR"), "test-resources/100_bytes_file.bin");

@@ -1,0 +1,11 @@
+.github/
+README.md
+Dockerfile
+target/
+*.log
+*.tmp
+prepare-test-env.sh
+run.sh
+test-resources/
+LICENSE/
+config.toml

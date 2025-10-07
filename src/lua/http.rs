@@ -54,7 +54,9 @@ mod tests {
     use mlua::{Lua, Result, Function};
     use crate::tests::init_tracing;
 
-    const HTTPBIN: &str = "https://httpbin.org";
+    fn httpbin() -> String {
+        std::env::var("TEST_HTTPBIN_ADDR").unwrap_or_else(|_| "https://httpbin.org".to_string())
+    }
 
     #[tokio::test]
     async fn test_http_request() -> Result<()> {
@@ -68,7 +70,7 @@ mod tests {
                 local status, body = http_request("GET", "{}/get")
                 return status, body
             end
-        "#, HTTPBIN);
+        "#, httpbin());
 
         lua.load(lua_code).exec_async().await?;
 
@@ -76,7 +78,7 @@ mod tests {
         let (status, body): (u16, String) = test_fn.call_async(()).await?;
 
         assert_eq!(status, 200);
-        assert!(body.contains(format!(r#""url": "{}/get""#, HTTPBIN).as_str()));
+        assert!(body.contains(format!(r#""url": "{}/get""#, httpbin()).as_str()));
 
         Ok(())
     }
@@ -97,7 +99,7 @@ mod tests {
                 local status, body = http_request("GET", "{}/headers", headers)
                 return status, body
             end
-        "#, HTTPBIN);
+        "#, httpbin());
 
         lua.load(lua_code).exec_async().await?;
 
@@ -127,7 +129,7 @@ mod tests {
                 local status, body = http_request("POST", "{}/post", headers, raw_body)
                 return status, body
             end
-        "#, HTTPBIN);
+        "#, httpbin());
 
         lua.load(lua_code).exec_async().await?;
 
@@ -160,7 +162,7 @@ mod tests {
                 local ok, status, body = pcall(http_request("INVALID", "{}/post", headers, raw_body))
                 return ok
             end
-        "#, HTTPBIN);
+        "#, httpbin());
 
         lua.load(lua_code).exec_async().await?;
 

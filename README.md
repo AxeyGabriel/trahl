@@ -1,13 +1,5 @@
 <a id="readme-top"></a>
 
-[![Contributors][contributors-shield]][contributors-url]
-[![Forks][forks-shield]][forks-url]
-[![Stargazers][stars-shield]][stars-url]
-[![Issues][issues-shield]][issues-url]
-[![License][license-shield]][license-url]
-[![Sponsor][sponsor-shield]][sponsor-url]
-[![CI Tests][ci-tests-shield]][ci-tests-url]
-
 <!-- LOGO -->
 <br />
 <p align="center">
@@ -15,6 +7,8 @@
         <img src="https://raw.githubusercontent.com/AxeyGabriel/trahl/refs/heads/master/.github/assets/logo.png" width="250">
     </a>
 </p>
+
+[![CI][ci-shield]][ci-url]
 
 # Trahl
 A distributed media transcoding system scriptable via Lua
@@ -112,18 +106,5 @@ Distributed under the BSD 2-Clause license. See `LICENSE` for more information.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-
-[contributors-shield]: https://img.shields.io/github/contributors/AxeyGabriel/trahl?style=for-the-badge
-[contributors-url]: https://github.com/AxeyGabriel/trahl/graphs/contributors
-[forks-shield]: https://img.shields.io/github/forks/AxeyGabriel/trahl?style=for-the-badge
-[forks-url]: https://github.com/AxeyGabriel/trahl/network/members
-[stars-shield]: https://img.shields.io/github/stars/AxeyGabriel/trahl?style=for-the-badge
-[stars-url]: https://github.com/AxeyGabriel/trahl/stargazers
-[issues-shield]: https://img.shields.io/github/issues/AxeyGabriel/trahl?style=for-the-badge
-[issues-url]: https://github.com/AxeyGabriel/trahl/issues
-[license-shield]: https://img.shields.io/github/license/AxeyGabriel/trahl?style=for-the-badge
-[license-url]: https://github.com/AxeyGabriel/trahl/blob/master/LICENSE
-[sponsor-shield]: https://img.shields.io/badge/sponsor-GitHub-blue?style=for-the-badge&logo=github
-[sponsor-url]: https://github.com/sponsors/AxeyGabriel
-[ci-tests-shield]: https://github.com/AxeyGabriel/trahl/actions/workflows/tests.yml/badge.svg?style=for-the-badge
-[ci-tests-url]: https://github.com/AxeyGabriel/trahl/actions/workflows/tests.yml
+[ci-shield]: https://github.com/AxeyGabriel/trahl/actions/workflows/ci.yml/badge.svg?style=for-the-badge&branch=master
+[ci-url]: https://github.com/AxeyGabriel/trahl/actions/workflows/ci.yml
