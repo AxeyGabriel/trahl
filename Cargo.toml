@@ -7,7 +7,7 @@ edition = "2024"
 anyhow = "1.0.99"
 assert_cmd = "2.0.17"
 bincode = { version = "2.0.1", features = ["serde"] }
-chrono = "0.4.41"
+chrono = "0.4.42"
 indoc = "2.0.6"
 lexopt = "0.3.1"
 mlua = { version = "0.11.3", features = ["lua54", "async", "vendored", "serde", "send"] }
