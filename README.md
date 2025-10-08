@@ -34,20 +34,97 @@ Trahl is a distributed transcoding system written in Rust and fully customizable
 
 <!-- INSTALLATION -->
 ## Installation
-todo
+Trahl is supported in FreeBSD, Linux and Windows
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ### Docker
-todo
+You can run **Trahl** using Docker and `docker-compose`. The image is available on GitHub Container Registry: `ghcr.io/axeygabriel/trahl:latest`.
+
+### Steps
+
+1. **Create a `docker-compose.yml`** file:
+
+```yaml
+version: "3.9"
+
+services:
+  trahl:
+    image: ghcr.io/axeygabriel/trahl:latest
+    container_name: trahl
+    environment:
+      CONFIG_FILE: "/config/trahl.yaml" # Path inside container to your config
+      MODE: "master"                    # "master" or "worker"
+    volumes:
+      - ./config:/config                # Mount configuration
+      - ./db:/db                        # Mount path for trahl internal files
+    restart: unless-stopped
+```
+2. Create a [configuration file](#configuration)
+3. Start Trahl:
+```bash
+$ docker-compose up -d
+```
+4. Check logs:
+```bash
+$ docker-compose logs -f
+```
+5. Done!
+
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ### From source
-todo
+
+* Linux
+```bash
+$ cargo build --release
+$ sudo ./install.sh
+```
+
+* FreeBSD
+
+* Windows
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 <!-- Configuration -->
 ## Configuration
-todo
+todo</br>
+Master and Worker can share the same configuration file if it's convenient</br>
+
+```toml
+# Trahl configuration file
+# Filename: config.toml
+
+[[jobs]]
+name = "Transcode Movies"                       # Library name
+enabled = true                                  # Library enable switch
+source_path = "/media/source/movies"            # Source path to discover new jobs
+destination_path = "/media/destination/movies"  # Location where to processed file
+lua_script = "/configs/scripts/movie.lua"       # Script to be executed
+[jobs.variables]                                # Add variables to lua context, accesible in _trahl.vars table
+EXCLUDECODEC = "h265"                           # Example variable. Regex matching works
+
+[master]
+web_ui_port = 8080                              # Web interface port
+orch_bind_addr = "127.0.0.1:8245"               # Orchestration bind address
+
+[worker]
+master_addr = "127.0.0.1:8245"                  # Master orchestration ip:port
+identifier = "test-worker"                      # Worker name
+cache_dir = "/tmp/trahl-cache"                  # Workdir / Transcode cache (write intensive)
+mapped = true                                   # Filesystem mapped node
+fs_remaps = [                                   # If master and worker diverges in path,
+    { master = "/", worker = "/" }              # you can control remapping here
+]
+
+[log]
+level = "debug"
+file = "/dev/stdout"
+```
+
+You can test and see your parsed configuration by running
+```bash trahl
+$ trahl -c config.toml -t
+```
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 <!-- Lua runtime -->
