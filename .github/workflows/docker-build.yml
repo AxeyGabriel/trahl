@@ -37,6 +37,7 @@ jobs:
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
+            type=ref,ref=refs/heads/master,format=latest
 
       - name: Build and push Docker image
         id: push
