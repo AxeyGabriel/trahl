@@ -82,6 +82,21 @@ class WindowManager {
         this.initStaticWindows();
         this.initTaskbar();
         this.initStartMenu();
+        this.restoreOpenWindows();
+    }
+
+    // --- Persist open windows ---
+    saveOpenWindows() {
+        localStorage.setItem("openWindows", JSON.stringify([...this.windows.keys()]));
+    }
+
+    async restoreOpenWindows() {
+        const saved = JSON.parse(localStorage.getItem("openWindows") || "[]");
+        for (const id of saved) {
+            if (!this.windows.has(id)) {
+                await this.fetchWindow(id);
+            }
+        }
     }
 
     // --- Initialization of static windows (HTML preloaded) ---
@@ -105,10 +120,8 @@ class WindowManager {
             if (!e.target.classList.contains("resize-handle")) {
                 this.bringToFront(winObj);
             }
+            e.preventDefault(); // prevent random text selection
         });
-
-        // Prevent text selection during drag
-        dom.addEventListener("mousedown", e => e.preventDefault());
 
         // Wire close/maximize buttons
         const closeBtn = dom.querySelector(".window-btn.close");
@@ -116,6 +129,9 @@ class WindowManager {
 
         const maxBtn = dom.querySelector(".window-btn.maximize");
         if (maxBtn) maxBtn.addEventListener("click", () => this.maximizeWindow(winObj));
+
+        this.saveOpenWindows();
+        this.updateTaskbar();
     }
 
     // --- Bring window to front ---
@@ -135,6 +151,21 @@ class WindowManager {
     // --- Taskbar behavior ---
     initTaskbar() {
         this.updateTaskbar();
+    }
+
+    updateTaskbar() {
+        const bar = document.querySelector('.taskbar-items');
+        if (!bar) return;
+        bar.innerHTML = '';
+        this.windows.forEach(winObj => {
+            const item = document.createElement('div');
+            item.className = 'taskbar-item';
+            item.dataset.window = winObj.id;
+            item.textContent = winObj.name;
+            if (winObj.dom.classList.contains('active')) item.classList.add('active');
+            item.addEventListener('click', () => this.bringToFront(winObj));
+            bar.appendChild(item);
+        });
     }
 
     // --- Start Menu behavior ---
@@ -158,6 +189,7 @@ class WindowManager {
                 startMenu.style.display = 'none';
                 const id = item.dataset.window;
                 if (!this.windows.has(id)) await this.fetchWindow(id);
+                else this.bringToFront(this.windows.get(id));
             });
         });
     }
@@ -171,6 +203,7 @@ class WindowManager {
             offsetX: event.clientX - winObj.dom.offsetLeft,
             offsetY: event.clientY - winObj.dom.offsetTop
         };
+        document.body.style.userSelect = "none";
         document.addEventListener("mousemove", this.handleDrag);
         document.addEventListener("mouseup", this.stopDrag);
     }
@@ -184,6 +217,7 @@ class WindowManager {
     }
 
     stopDrag() {
+        document.body.style.userSelect = "";
         document.removeEventListener("mousemove", this.handleDrag);
         document.removeEventListener("mouseup", this.stopDrag);
         if (this.dragInfo) this.dragInfo.winObj.saveToStorage();
@@ -204,6 +238,7 @@ class WindowManager {
             startLeft: rect.left,
             startTop: rect.top
         };
+        document.body.style.userSelect = "none";
         document.addEventListener("mousemove", this.handleResize);
         document.addEventListener("mouseup", this.stopResize);
     }
@@ -226,6 +261,7 @@ class WindowManager {
     }
 
     stopResize() {
+        document.body.style.userSelect = "";
         document.removeEventListener("mousemove", this.handleResize);
         document.removeEventListener("mouseup", this.stopResize);
         if (this.resizeInfo) this.resizeInfo.winObj.saveToStorage();
@@ -260,13 +296,15 @@ class WindowManager {
     closeWindow(winObj) {
         const dom = winObj.dom;
 
-        // Abort SSE/polling tasks
+        // Abort htmx SSE & polling
         dom.querySelectorAll("[hx-ext='sse'], [hx-trigger*='every']").forEach(el => {
-            if (el._htmx_sse_source) el._htmx_sse_source.close?.();
+            if (el._htmx_sse_source?.close) el._htmx_sse_source.close();
+            if (el._htmxInterval) clearInterval(el._htmxInterval);
         });
 
         dom.remove();
         this.windows.delete(winObj.id);
+        this.saveOpenWindows();
         this.updateTaskbar();
     }
 
@@ -290,22 +328,6 @@ class WindowManager {
         } catch (err) {
             console.error("Failed to load window:", err);
         }
-    }
-
-    // --- Update taskbar dynamically ---
-    updateTaskbar() {
-        const bar = document.querySelector('.taskbar-items');
-        if (!bar) return;
-        bar.innerHTML = '';
-        this.windows.forEach(winObj => {
-            const item = document.createElement('div');
-            item.className = 'taskbar-item';
-            item.dataset.window = winObj.id;
-            item.textContent = winObj.name;
-            if (winObj.dom.style.display !== "none") item.classList.add('active');
-            item.addEventListener('click', () => this.bringToFront(winObj));
-            bar.appendChild(item);
-        });
     }
 }
 
