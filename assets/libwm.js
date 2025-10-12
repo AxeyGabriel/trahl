@@ -11,6 +11,9 @@ class Window {
         this.width = parseInt(style.width) || 400;
         this.height = parseInt(style.height) || 300;
         this.maximized = dom.dataset.maximized === "true";
+
+        this.restoreFromStorage();
+        this.updateDOM();
     }
 
     updateDOM() {
@@ -21,6 +24,42 @@ class Window {
             width: `${this.width}px`,
             height: `${this.height}px`
         });
+        this.dom.dataset.maximized = this.maximized ? "true" : "false";
+    }
+
+    saveToStorage() {
+        const data = {
+            x: this.x,
+            y: this.y,
+            width: this.width,
+            height: this.height,
+            maximized: this.maximized
+        };
+        const all = JSON.parse(localStorage.getItem("windowState") || "{}");
+        all[this.id] = data;
+        localStorage.setItem("windowState", JSON.stringify(all));
+    }
+
+    restoreFromStorage() {
+        try {
+            const all = JSON.parse(localStorage.getItem("windowState") || "{}");
+            const s = all[this.id];
+            if (s) {
+                this.x = s.x;
+                this.y = s.y;
+                this.width = s.width;
+                this.height = s.height;
+                this.maximized = s.maximized;
+            }
+        } catch {
+            console.warn("Could not restore window state");
+        }
+    }
+
+    removeFromStorage() {
+        const all = JSON.parse(localStorage.getItem("windowState") || "{}");
+        delete all[this.id];
+        localStorage.setItem("windowState", JSON.stringify(all));
     }
 }
 
@@ -57,7 +96,9 @@ class WindowManager {
         if (!winObj.id) return;
         this.windows.set(winObj.id, winObj);
         const dom = winObj.dom;
-        dom.dataset.maximized = "false";
+
+        dom.dataset.maximized = winObj.maximized ? "true" : "false";
+        winObj.updateDOM();
 
         // Bring to front when clicking anywhere except resize handles
         dom.addEventListener("mousedown", e => {
@@ -93,14 +134,7 @@ class WindowManager {
 
     // --- Taskbar behavior ---
     initTaskbar() {
-        document.querySelectorAll(".taskbar-item").forEach(item => {
-            item.addEventListener("click", () => {
-                const win = this.windows.get(item.dataset.window);
-                if (!win) return;
-                win.dom.style.display = "block";
-                this.bringToFront(win);
-            });
-        });
+        this.updateTaskbar();
     }
 
     // --- Start Menu behavior ---
@@ -152,6 +186,7 @@ class WindowManager {
     stopDrag() {
         document.removeEventListener("mousemove", this.handleDrag);
         document.removeEventListener("mouseup", this.stopDrag);
+        if (this.dragInfo) this.dragInfo.winObj.saveToStorage();
         this.dragInfo = null;
     }
 
@@ -193,6 +228,7 @@ class WindowManager {
     stopResize() {
         document.removeEventListener("mousemove", this.handleResize);
         document.removeEventListener("mouseup", this.stopResize);
+        if (this.resizeInfo) this.resizeInfo.winObj.saveToStorage();
         this.resizeInfo = null;
     }
 
@@ -207,6 +243,7 @@ class WindowManager {
                 height: dom.dataset.height
             });
             dom.dataset.maximized = "false";
+            winObj.maximized = false;
         } else {
             dom.dataset.left = dom.style.left;
             dom.dataset.top = dom.style.top;
@@ -214,7 +251,9 @@ class WindowManager {
             dom.dataset.height = dom.style.height;
             Object.assign(dom.style, { left: "0px", top: "0px", width: "100vw", height: "100vh" });
             dom.dataset.maximized = "true";
+            winObj.maximized = true;
         }
+        winObj.saveToStorage();
     }
 
     // --- Close window ---
