@@ -11,6 +11,7 @@ class Window {
         this.width = parseInt(style.width) || 400;
         this.height = parseInt(style.height) || 300;
         this.maximized = dom.dataset.maximized === "true";
+		this.zIndex = parseInt(style.zIndex) || 1000;
 
         this.restoreFromStorage();
         this.updateDOM();
@@ -18,13 +19,26 @@ class Window {
 
     updateDOM() {
         if (!this.dom) return;
-        Object.assign(this.dom.style, {
-            left: `${this.x}px`,
-            top: `${this.y}px`,
-            width: `${this.width}px`,
-            height: `${this.height}px`
-        });
-        this.dom.dataset.maximized = this.maximized ? "true" : "false";
+
+		this.dom.dataset.maximized = this.maximized ? "true" : "false";
+		
+		if (this.maximized) {
+			Object.assign(this.dom.style, {
+				left: "0px",
+				top: "0px",
+				width: "100vw",
+				height: "100vh",
+				zIndex: this.zIndex
+			});
+		} else {
+	        Object.assign(this.dom.style, {
+	            left: `${this.x}px`,
+	            top: `${this.y}px`,
+	            width: `${this.width}px`,
+	            height: `${this.height}px`,
+				zIndex: this.zIndex
+	        });
+		}    
     }
 
     saveToStorage() {
@@ -33,7 +47,8 @@ class Window {
             y: this.y,
             width: this.width,
             height: this.height,
-            maximized: this.maximized
+            maximized: this.maximized,
+			zIndex: this.zIndex
         };
         const all = JSON.parse(localStorage.getItem("windowState") || "{}");
         all[this.id] = data;
@@ -50,6 +65,7 @@ class Window {
                 this.width = s.width;
                 this.height = s.height;
                 this.maximized = s.maximized;
+				this.zIndex = s.zIndex;
             }
         } catch {
             console.warn("Could not restore window state");
@@ -112,9 +128,6 @@ class WindowManager {
         this.windows.set(winObj.id, winObj);
         const dom = winObj.dom;
 
-        dom.dataset.maximized = winObj.maximized ? "true" : "false";
-        winObj.updateDOM();
-
         // Bring to front when clicking anywhere except resize handles
         dom.addEventListener("mousedown", e => {
             if (!e.target.classList.contains("resize-handle")) {
@@ -130,6 +143,7 @@ class WindowManager {
         const maxBtn = dom.querySelector(".window-btn.maximize");
         if (maxBtn) maxBtn.addEventListener("click", () => this.maximizeWindow(winObj));
 
+        winObj.updateDOM();
         this.saveOpenWindows();
         this.updateTaskbar();
     }
@@ -138,7 +152,9 @@ class WindowManager {
     bringToFront(winObj) {
         if (!winObj || !winObj.dom) return;
         this.zCounter++;
-        winObj.dom.style.zIndex = this.zCounter;
+		winObj.zIndex = this.zCounter;
+		winObj.updateDOM();
+        winObj.saveToStorage();
 
         // Mark active
         this.windows.forEach(w => w.dom.classList.remove("active"));
@@ -188,7 +204,10 @@ class WindowManager {
                 e.stopPropagation();
                 startMenu.style.display = 'none';
                 const id = item.dataset.window;
-                if (!this.windows.has(id)) await this.fetchWindow(id);
+                if (!this.windows.has(id)) {
+					await this.fetchWindow(id);
+            		this.bringToFront(winObj);
+				}
                 else this.bringToFront(this.windows.get(id));
             });
         });
@@ -272,23 +291,15 @@ class WindowManager {
     maximizeWindow(winObj) {
         const dom = winObj.dom;
         if (dom.dataset.maximized === "true") {
-            Object.assign(dom.style, {
-                left: dom.dataset.left,
-                top: dom.dataset.top,
-                width: dom.dataset.width,
-                height: dom.dataset.height
-            });
-            dom.dataset.maximized = "false";
             winObj.maximized = false;
         } else {
             dom.dataset.left = dom.style.left;
             dom.dataset.top = dom.style.top;
             dom.dataset.width = dom.style.width;
             dom.dataset.height = dom.style.height;
-            Object.assign(dom.style, { left: "0px", top: "0px", width: "100vw", height: "100vh" });
-            dom.dataset.maximized = "true";
             winObj.maximized = true;
         }
+		winObj.updateDOM();
         winObj.saveToStorage();
     }
 
@@ -322,9 +333,10 @@ class WindowManager {
                 return;
             }
             document.body.appendChild(dom);
-            const winObj = new Window(dom);
+
+			const winObj = new Window(dom);
             this.registerWindow(winObj);
-            this.bringToFront(winObj);
+			htmx.process(dom);
         } catch (err) {
             console.error("Failed to load window:", err);
         }

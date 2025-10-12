@@ -38,6 +38,7 @@ pub async fn web_service(ctx: Arc<MasterCtx>) {
 
     let router = Router::new()
             .route("/sse/clock", get(sse::clock))
+            .route("/sse/test", get(sse::test))
             .route("/", get(index::index()))
             .route("/windows/window-queue", get(queue_window()))
             .route("/windows/window-control", get(control_panel_window()))
@@ -295,6 +296,9 @@ fn control_panel_window() -> Markup {
                         div { "Memory: 4.2/16 GB" }
                         div { "Disk I/O: 145 MB/s" }
                         div { "Network: 23 MB/s" }
+                        div { "Counter: "
+                            div hx-ext="sse" sse-connect="/sse/test" sse-swap="TestEvent" #counter {}
+                        }
                     }
                 }
             }
