@@ -1,26 +1,18 @@
+mod sse;
+mod windows;
+mod index;
+
 use axum::{
     http,
     Router,
     routing::get,
-    response::{
-        sse::{
-            Event,
-            Sse,
-            KeepAlive,
-        },
-        IntoResponse,
-    }
+    response::IntoResponse,
 };
-use maud::{html, Markup, DOCTYPE};
+use maud::{html, Markup};
 use reqwest::header;
 use std::sync::Arc;
 use tokio::net::TcpListener;
 use tracing::info;
-use std::convert::Infallible;
-use futures::Stream;
-use async_stream::try_stream;
-use std::time::Duration;
-use chrono;
 
 use super::MasterCtx;
 
@@ -40,8 +32,12 @@ pub async fn web_service(ctx: Arc<MasterCtx>) {
     };
 
     let router = Router::new()
-            .route("/sse/clock", get(sse_clock))
-            .route("/", get(dashboard_page()))
+            .route("/sse/clock", get(sse::clock))
+            .route("/", get(index::index()))
+            .route("/windows/window-queue", get(queue_window()))
+            .route("/windows/window-control", get(control_panel_window()))
+            .route("/windows/window-activity", get(activity_window()))
+            .route("/windows/window-statistics", get(statistics_window()))
             .route("/favicon.ico", get(|| async {
                 axum::response::Redirect::permanent("/static/favicon.ico")
             }))
@@ -89,42 +85,20 @@ fn serve_cached_asset(content: &'static str, content_type: &'static str) -> impl
     )
 }
 
-fn dashboard_page() -> Markup {
-    html! {
-        (DOCTYPE)
-        html lang="en" {
-            head {
-                meta charset="UTF-8";
-                meta name="viewport" content="width=device-width, initial-scale=1.0";
-                title { "Trahl" }
-                script src="/static/htmx.min.js" {}
-                script src="/static/htmx-ext-sse.min.js" {}
-                link rel="stylesheet" href="/static/style.css" {}
-            }
-            body {
-                (statistics_window())
-                (queue_window())
-                (activity_window())
-                (control_panel_window())
-                (taskbar())
-                script src="/static/libwm.js" {}
-            }
-        }
-    }
-}
-
 fn statistics_window() -> Markup {
-    html! {
-        div.mdi-window # window-statistics style="left: 20px; top: 20px; width: 480px; height: 280px; z-index: 1004;" {
-            (window_title("window-statistics", "Statistics"))
-            (resize_handles("window-statistics"))
-
-            div.window-content
-                style="height: calc(100% - 22px);" {
-                (stats_content())
-            }
+    let content = html! {
+        div.window-content
+            style="height: calc(100% - 22px);" {
+            (stats_content())
         }
-    }
+    };
+
+    windows::create_window(
+        "window-statistics",
+        "Statistics",
+        "left: 20px; top: 20px; width: 480px; height: 280px; z-index: 1004;",
+        content
+    )
 }
 
 fn stats_content() -> Markup {
@@ -149,7 +123,7 @@ fn stats_content() -> Markup {
             div.stat-card {
                 div.stat-label {
                     "FAILED"
-                    span.stat-icon style="background: #ff0000; color: white;" { "⚠" }
+                    span.stat-icon style="background: #ff0000; color: white;" { "⚠ " }
                 }
                 div.stat-value { "7" }
                 div.stat-detail { "2 this week" }
@@ -167,30 +141,32 @@ fn stats_content() -> Markup {
 }
 
 fn queue_window() -> Markup {
-    html! {
-        div.mdi-window # window-queue style="left: 520px; top: 20px; width: 600px; height: 380px; z-index: 1003;" {
-            (window_title("window-queue", "Transcode Queue"))
-            (resize_handles("window-queue"))
-
-            div.window-content style="height: calc(100% - 22px);" {
-                table.win98-table {
-                    thead {
-                        tr {
-                            th { "FILE" }
-                            th { "STATUS" }
-                            th { "PROGRESS" }
-                            th { "WORKER" }
-                            th { "LIBRARY" }
-                            th { "ETA" }
-                        }
+    let content = html! {
+        div.window-content style="height: calc(100% - 22px);" {
+            table.win98-table {
+                thead {
+                    tr {
+                        th { "FILE" }
+                        th { "STATUS" }
+                        th { "PROGRESS" }
+                        th { "WORKER" }
+                        th { "LIBRARY" }
+                        th { "ETA" }
                     }
-                    tbody # queue-tbody {
-                        (queue_rows())
-                    }
+                }
+                tbody # queue-tbody {
+                    (queue_rows())
                 }
             }
         }
-    }
+    };
+    
+    windows::create_window(
+        "window-queue",
+        "Transcode Queue",
+        "left: 520px; top: 20px; width: 600px; height: 380px; z-index: 1003;",
+        content
+    )
 }
 
 fn queue_rows() -> Markup {
@@ -233,17 +209,19 @@ fn queue_rows() -> Markup {
 }
 
 fn activity_window() -> Markup {
-    html! {
-        div.mdi-window # window-activity style="left: 120px; top: 320px; width: 500px; height: 340px; z-index: 1002;" {
-            (window_title("window-activity", "Activity"))
-            (resize_handles("window-activity"))
-
-            div.window-content # activity-feed
-                style="height: calc(100% - 22px);" {
-                (activity_items())
-            }
+    let content = html! {
+        div.window-content # activity-feed
+            style="height: calc(100% - 22px);" {
+            (activity_items())
         }
-    }
+    };
+    
+    windows::create_window(
+        "window-activity",
+        "Activity",
+        "left: 120px; top: 320px; width: 500px; height: 340px; z-index: 1002;",
+        content
+    )
 }
 
 fn activity_items() -> Markup {
@@ -282,107 +260,43 @@ fn activity_items() -> Markup {
 }
 
 fn control_panel_window() -> Markup {
-    html! {
-        div.mdi-window # window-control style="left: 640px; top: 420px; width: 360px; height: 300px; z-index: 1001;" {
-            (window_title("window-control", "Control panel"))
-            (resize_handles("window-control"))
-
-            div.window-content style="height: calc(100% - 22px);" {
-                div.control-section {
-                    div.win98-panel {
-                        h3 { "SYSTEM CONTROLS" }
-                        div.button-group {
-                            button.win98-button {
-                                "Start All Workers"
-                            }
-                            button.win98-button {
-                                "Pause Queue"
-                            }
-                            button.win98-button {
-                                "Clear Failed Jobs"
-                            }
+    let content = html! {
+        div.window-content style="height: calc(100% - 22px);" {
+            div.control-section {
+                div.win98-panel {
+                    h3 { "SYSTEM CONTROLS" }
+                    div.button-group {
+                        button.win98-button {
+                            "Start All Workers"
                         }
-                    }
-                }
-
-                div.control-section {
-                    div.win98-panel {
-                        h3 { "QUICK STATS" }
-                        div.quick-stats {
-                            div { "CPU Usage: 78%" }
-                            div { "Memory: 4.2/16 GB" }
-                            div { "Disk I/O: 145 MB/s" }
-                            div { "Network: 23 MB/s" }
+                        button.win98-button {
+                            "Pause Queue"
+                        }
+                        button.win98-button {
+                            "Clear Failed Jobs"
                         }
                     }
                 }
             }
-        }
-    }
-}
 
-fn resize_handles(window_id: &str) -> Markup {
-    html! {
-        div.resize-handle.resize-n onmousedown=(format!("startResize(event, '{}', 'n')", window_id)) {}
-        div.resize-handle.resize-s onmousedown=(format!("startResize(event, '{}', 's')", window_id)) {}
-        div.resize-handle.resize-e onmousedown=(format!("startResize(event, '{}', 'e')", window_id)) {}
-        div.resize-handle.resize-w onmousedown=(format!("startResize(event, '{}', 'w')", window_id)) {}
-        div.resize-handle.resize-ne onmousedown=(format!("startResize(event, '{}', 'ne')", window_id)) {}
-        div.resize-handle.resize-nw onmousedown=(format!("startResize(event, '{}', 'nw')", window_id)) {}
-        div.resize-handle.resize-se onmousedown=(format!("startResize(event, '{}', 'se')", window_id)) {}
-        div.resize-handle.resize-sw onmousedown=(format!("startResize(event, '{}', 'sw')", window_id)) {}
-    }
-}
-
-fn taskbar() -> Markup {
-    html! {
-        div.taskbar {
-            div.start-button { "Start" }
-            div.start-menu {
-                ul.start-menu-list {
-                    li.start-menu-item { "Statistics" }
-                    li.start-menu-item { "System Logs" }
+            div.control-section {
+                div.win98-panel {
+                    h3 { "QUICK STATS" }
+                    div.quick-stats {
+                        div { "CPU Usage: 78%" }
+                        div { "Memory: 4.2/16 GB" }
+                        div { "Disk I/O: 145 MB/s" }
+                        div { "Network: 23 MB/s" }
+                    }
                 }
             }
-            div.taskbar-items {
-                div.taskbar-item.active data-window="window-statistics" { "Statistics" }
-                div.taskbar-item data-window="window-queue" { "Queue" }
-                div.taskbar-item data-window="window-activity" { "Activity" }
-                div.taskbar-item data-window="window-control" { "Control Panel" }
-            }
-            div.taskbar-clock
-                hx-ext="sse"
-                sse-connect="/sse/clock"
-                sse-swap="ClockEvent" #clock {}
         }
-    }
-}
+    };
 
-fn window_title(window_id: &str, title: &str) -> Markup {
-    html! {
-        div.title-bar onmousedown=(format!("startDrag(event, '{}')", window_id)) {
-            span.title-text { (title) }
-            div.title-buttons {
-                button.title-button onclick=(format!("maximizeWindow('{}')", window_id)) { "□" }
-                button.title-button onclick=(format!("closeWindow('{}')", window_id)) { "✕" }
-            }
-        }
-    }
-}
-
-pub async fn sse_clock() -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
-    Sse::new(try_stream! {
-        let mut id: u64 = 0;
-        loop {
-            tokio::time::sleep(Duration::from_secs(1)).await;
-            let now = chrono::Local::now().format("%H:%M:%S").to_string();
-            let event = Event::default()
-                .event("ClockEvent")
-                .id(id.to_string())
-                .data(now);
-            id += 1;
-            yield event;
-        }
-    })
-    .keep_alive(KeepAlive::default())
+    windows::create_window(
+        "window-control",
+        "Control Panel",
+        "left: 640px; top: 420px; width: 360px; height: 300px; z-index: 1001;",
+        content
+    )
 }

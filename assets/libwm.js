@@ -1,7 +1,34 @@
+// --- Individual window object ---
+class Window {
+    constructor(dom) {
+        this.dom = dom;
+        this.id = dom.id;
+        this.name = dom.dataset.title || dom.id.replace('window-', '');
+
+        const style = window.getComputedStyle(dom);
+        this.x = parseInt(style.left) || 100;
+        this.y = parseInt(style.top) || 100;
+        this.width = parseInt(style.width) || 400;
+        this.height = parseInt(style.height) || 300;
+        this.maximized = dom.dataset.maximized === "true";
+    }
+
+    updateDOM() {
+        if (!this.dom) return;
+        Object.assign(this.dom.style, {
+            left: `${this.x}px`,
+            top: `${this.y}px`,
+            width: `${this.width}px`,
+            height: `${this.height}px`
+        });
+    }
+}
+
+// --- Window Manager ---
 class WindowManager {
     constructor() {
-        this.windows = {};      // all registered windows
-        this.zCounter = 1000;   // z-index counter
+        this.windows = new Map();
+        this.zCounter = 1000;
         this.activeWindow = null;
         this.dragInfo = null;
         this.resizeInfo = null;
@@ -18,60 +45,66 @@ class WindowManager {
         this.initStartMenu();
     }
 
+    // --- Initialization of static windows (HTML preloaded) ---
     initStaticWindows() {
-        const wm = this;
-        document.querySelectorAll(".mdi-window").forEach(win => {
-            wm.registerWindow(win);
-            win.addEventListener("mousedown", e => {
-                if (!e.target.classList.contains("resize-handle")) {
-                    wm.bringToFront(win.id);
-                }
-            });
+        document.querySelectorAll(".mdi-window").forEach(dom => {
+            this.registerWindow(new Window(dom));
         });
     }
 
-    registerWindow(win) {
-        if (!win.id) return;
-        this.windows[win.id] = win;
-        win.dataset.maximized = "false";
+    // --- Register a window ---
+    registerWindow(winObj) {
+        if (!winObj.id) return;
+        this.windows.set(winObj.id, winObj);
+        const dom = winObj.dom;
+        dom.dataset.maximized = "false";
+
+        // Bring to front when clicking anywhere except resize handles
+        dom.addEventListener("mousedown", e => {
+            if (!e.target.classList.contains("resize-handle")) {
+                this.bringToFront(winObj);
+            }
+        });
+
+        // Prevent text selection during drag
+        dom.addEventListener("mousedown", e => e.preventDefault());
+
+        // Wire close/maximize buttons
+        const closeBtn = dom.querySelector(".window-btn.close");
+        if (closeBtn) closeBtn.addEventListener("click", () => this.closeWindow(winObj));
+
+        const maxBtn = dom.querySelector(".window-btn.maximize");
+        if (maxBtn) maxBtn.addEventListener("click", () => this.maximizeWindow(winObj));
     }
 
-    bringToFront(id) {
-        const win = this.windows[id];
-        if (!win) return;
-
+    // --- Bring window to front ---
+    bringToFront(winObj) {
+        if (!winObj || !winObj.dom) return;
         this.zCounter++;
-        win.style.zIndex = this.zCounter;
+        winObj.dom.style.zIndex = this.zCounter;
 
-        // Mark active/inactive windows
-        Object.values(this.windows).forEach(w => w.classList.remove("active"));
-        win.classList.add("active");
-        this.activeWindow = win;
+        // Mark active
+        this.windows.forEach(w => w.dom.classList.remove("active"));
+        winObj.dom.classList.add("active");
+        this.activeWindow = winObj;
 
-        // Update taskbar highlights
-        document.querySelectorAll('.taskbar-item').forEach(item => item.classList.remove('active'));
-        const taskItem = document.querySelector(`.taskbar-item[data-window="${id}"]`);
-        if (taskItem) taskItem.classList.add('active');
+        this.updateTaskbar();
     }
 
+    // --- Taskbar behavior ---
     initTaskbar() {
-        const wm = this;
         document.querySelectorAll(".taskbar-item").forEach(item => {
             item.addEventListener("click", () => {
-                const id = item.dataset.window;
-                const win = wm.windows[id];
+                const win = this.windows.get(item.dataset.window);
                 if (!win) return;
-
-                if (win.style.display === "none") {
-                    win.style.display = "block";
-                }
-                wm.bringToFront(id);
+                win.dom.style.display = "block";
+                this.bringToFront(win);
             });
         });
     }
 
+    // --- Start Menu behavior ---
     initStartMenu() {
-        const wm = this;
         const startButton = document.querySelector('.start-button');
         const startMenu = document.querySelector('.start-menu');
         if (!startButton || !startMenu) return;
@@ -86,42 +119,34 @@ class WindowManager {
         });
 
         startMenu.querySelectorAll('.start-menu-item').forEach(item => {
-            item.addEventListener('click', e => {
-                const name = e.target.innerText;
+            item.addEventListener('click', async e => {
+                e.stopPropagation();
                 startMenu.style.display = 'none';
-                const winId = `window-${name.toLowerCase().replace(/\s+/g, '-')}`;
-                const win = wm.windows[winId];
-                if (win) {
-                    win.style.display = 'block';
-                    wm.bringToFront(winId);
-                }
+                const id = item.dataset.window;
+                if (!this.windows.has(id)) await this.fetchWindow(id);
             });
         });
     }
 
     // --- Dragging ---
-    startDrag(event, id) {
-		event.preventDefault();
-        const win = this.windows[id];
-        if (!win) return;
-
-        this.bringToFront(id);
-
+    startDrag(event, winObj) {
+        event.preventDefault();
+        this.bringToFront(winObj);
         this.dragInfo = {
-            win,
-            offsetX: event.clientX - win.offsetLeft,
-            offsetY: event.clientY - win.offsetTop
+            winObj,
+            offsetX: event.clientX - winObj.dom.offsetLeft,
+            offsetY: event.clientY - winObj.dom.offsetTop
         };
-
         document.addEventListener("mousemove", this.handleDrag);
         document.addEventListener("mouseup", this.stopDrag);
     }
 
     handleDrag(event) {
         if (!this.dragInfo) return;
-        const { win, offsetX, offsetY } = this.dragInfo;
-        win.style.left = `${event.clientX - offsetX}px`;
-        win.style.top = `${event.clientY - offsetY}px`;
+        const { winObj, offsetX, offsetY } = this.dragInfo;
+        winObj.x = event.clientX - offsetX;
+        winObj.y = event.clientY - offsetY;
+        winObj.updateDOM();
     }
 
     stopDrag() {
@@ -130,52 +155,39 @@ class WindowManager {
         this.dragInfo = null;
     }
 
-    // --- Resize ---
-    startResize(event, id, direction) {
-		event.preventDefault();
-        const win = this.windows[id];
-        if (!win) return;
-
-        this.bringToFront(id);
-
+    // --- Resizing ---
+    startResize(event, winObj, dir) {
+        event.preventDefault();
+        this.bringToFront(winObj);
+        const rect = winObj.dom.getBoundingClientRect();
         this.resizeInfo = {
-            win,
-            direction,
+            winObj, dir,
             startX: event.clientX,
             startY: event.clientY,
-            startWidth: win.offsetWidth,
-            startHeight: win.offsetHeight,
-            startLeft: win.offsetLeft,
-            startTop: win.offsetTop
+            startWidth: rect.width,
+            startHeight: rect.height,
+            startLeft: rect.left,
+            startTop: rect.top
         };
-
         document.addEventListener("mousemove", this.handleResize);
         document.addEventListener("mouseup", this.stopResize);
     }
 
     handleResize(event) {
         if (!this.resizeInfo) return;
-        const { win, direction, startX, startY, startWidth, startHeight, startLeft, startTop } = this.resizeInfo;
-        let newWidth = startWidth;
-        let newHeight = startHeight;
-        let newLeft = startLeft;
-        let newTop = startTop;
+        const { winObj, dir, startX, startY, startWidth, startHeight, startLeft, startTop } = this.resizeInfo;
 
-        if (direction.includes("e")) newWidth = startWidth + (event.clientX - startX);
-        if (direction.includes("s")) newHeight = startHeight + (event.clientY - startY);
-        if (direction.includes("w")) {
-            newWidth = startWidth - (event.clientX - startX);
-            newLeft = startLeft + (event.clientX - startX);
-        }
-        if (direction.includes("n")) {
-            newHeight = startHeight - (event.clientY - startY);
-            newTop = startTop + (event.clientY - startY);
-        }
+        let dx = event.clientX - startX;
+        let dy = event.clientY - startY;
 
-        win.style.width = `${Math.max(newWidth, 200)}px`;
-        win.style.height = `${Math.max(newHeight, 150)}px`;
-        win.style.left = `${newLeft}px`;
-        win.style.top = `${newTop}px`;
+        if (dir.includes('e')) winObj.width = startWidth + dx;
+        if (dir.includes('s')) winObj.height = startHeight + dy;
+        if (dir.includes('w')) { winObj.width = startWidth - dx; winObj.x = startLeft + dx; }
+        if (dir.includes('n')) { winObj.height = startHeight - dy; winObj.y = startTop + dy; }
+
+        winObj.width = Math.max(winObj.width, 200);
+        winObj.height = Math.max(winObj.height, 150);
+        winObj.updateDOM();
     }
 
     stopResize() {
@@ -184,77 +196,88 @@ class WindowManager {
         this.resizeInfo = null;
     }
 
-    maximizeWindow(id) {
-        const win = this.windows[id];
-        if (!win) return;
-
-        if (win.dataset.maximized === "true") {
-            // Restore
-            win.style.left = win.dataset.left;
-            win.style.top = win.dataset.top;
-            win.style.width = win.dataset.width;
-            win.style.height = win.dataset.height;
-            win.dataset.maximized = "false";
+    // --- Maximize toggle ---
+    maximizeWindow(winObj) {
+        const dom = winObj.dom;
+        if (dom.dataset.maximized === "true") {
+            Object.assign(dom.style, {
+                left: dom.dataset.left,
+                top: dom.dataset.top,
+                width: dom.dataset.width,
+                height: dom.dataset.height
+            });
+            dom.dataset.maximized = "false";
         } else {
-            // Save original
-            win.dataset.left = win.style.left;
-            win.dataset.top = win.style.top;
-            win.dataset.width = win.style.width;
-            win.dataset.height = win.style.height;
-
-            win.style.left = "0px";
-            win.style.top = "0px";
-            win.style.width = "100vw";
-            win.style.height = "100vh";
-            win.dataset.maximized = "true";
+            dom.dataset.left = dom.style.left;
+            dom.dataset.top = dom.style.top;
+            dom.dataset.width = dom.style.width;
+            dom.dataset.height = dom.style.height;
+            Object.assign(dom.style, { left: "0px", top: "0px", width: "100vw", height: "100vh" });
+            dom.dataset.maximized = "true";
         }
     }
 
-    closeWindow(id) {
-        const win = this.windows[id];
-        if (!win) return;
+    // --- Close window ---
+    closeWindow(winObj) {
+        const dom = winObj.dom;
 
-        // Abort any HTMX SSE/polling
-        win.querySelectorAll("[hx-sse], [hx-get][hx-trigger]").forEach(el => {
-            if (el._htmx) el._htmx.abort?.();
+        // Abort SSE/polling tasks
+        dom.querySelectorAll("[hx-ext='sse'], [hx-trigger*='every']").forEach(el => {
+            if (el._htmx_sse_source) el._htmx_sse_source.close?.();
         });
 
-        win.style.display = "none";
-
-        const taskItem = document.querySelector(`.taskbar-item[data-window="${id}"]`);
-        if (taskItem) taskItem.classList.remove("active");
+        dom.remove();
+        this.windows.delete(winObj.id);
+        this.updateTaskbar();
     }
 
-    // --- Create windows from HTMX responses ---
-    createWindowFromHTMX(id, contentHTML) {
-        if (this.windows[id]) {
-            const win = this.windows[id];
-            win.innerHTML = contentHTML;
-            win.style.display = "block";
-            this.bringToFront(id);
-        } else {
-            const win = document.createElement("div");
-            win.id = id;
-            win.className = "mdi-window";
-            win.innerHTML = contentHTML;
-            win.style.position = "absolute";
-            win.style.left = "100px";
-            win.style.top = "100px";
-            win.style.width = "400px";
-            win.style.height = "300px";
-            document.body.appendChild(win);
-            this.registerWindow(win);
-            this.bringToFront(id);
+    // --- Fetch new window ---
+    async fetchWindow(id) {
+        try {
+            const resp = await fetch(`/windows/${id}`, { headers: { 'HX-Request': 'true' } });
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            const html = await resp.text();
+            const container = document.createElement('div');
+            container.innerHTML = html.trim();
+            const dom = container.firstElementChild;
+            if (!dom?.classList.contains('mdi-window')) {
+                console.warn(`Invalid window HTML from /windows/${id}`);
+                return;
+            }
+            document.body.appendChild(dom);
+            const winObj = new Window(dom);
+            this.registerWindow(winObj);
+            this.bringToFront(winObj);
+        } catch (err) {
+            console.error("Failed to load window:", err);
         }
+    }
+
+    // --- Update taskbar dynamically ---
+    updateTaskbar() {
+        const bar = document.querySelector('.taskbar-items');
+        if (!bar) return;
+        bar.innerHTML = '';
+        this.windows.forEach(winObj => {
+            const item = document.createElement('div');
+            item.className = 'taskbar-item';
+            item.dataset.window = winObj.id;
+            item.textContent = winObj.name;
+            if (winObj.dom.style.display !== "none") item.classList.add('active');
+            item.addEventListener('click', () => this.bringToFront(winObj));
+            bar.appendChild(item);
+        });
     }
 }
 
-// Usage
+// --- Global init ---
 document.addEventListener("DOMContentLoaded", () => {
     window.wm = new WindowManager();
-	window.startDrag = (e, id) => wm.startDrag(e, id);
-    window.startResize = (e, id, dir) => wm.startResize(e, id, dir);
-    window.maximizeWindow = (id) => wm.maximizeWindow(id);
-    window.closeWindow = (id) => wm.closeWindow(id);
+
+    // Expose for inline handlers
+    window.startDrag = (e, id) => wm.startDrag(e, wm.windows.get(id));
+    window.startResize = (e, id, dir) => wm.startResize(e, wm.windows.get(id), dir);
+    window.maximizeWindow = id => wm.maximizeWindow(wm.windows.get(id));
+    window.closeWindow = id => wm.closeWindow(wm.windows.get(id));
 });
 
