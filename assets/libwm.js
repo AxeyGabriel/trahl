@@ -169,3 +169,35 @@ function closeWindow(id) {
     const taskItem = document.querySelector(`.taskbar-item[data-window="${id}"]`);
     if (taskItem) taskItem.classList.remove("active");
 }
+
+// ---------------------- START MENU ----------------------
+const startButton = document.querySelector('.start-button');
+const startMenu = document.querySelector('.start-menu');
+
+// Toggle Start Menu on button click
+startButton.addEventListener('click', (e) => {
+    e.stopPropagation();
+    startMenu.style.display = startMenu.style.display === 'block' ? 'none' : 'block';
+});
+
+// Close Start Menu if clicking outside
+document.addEventListener('click', () => {
+    startMenu.style.display = 'none';
+});
+
+// Optional: handle menu item clicks
+startMenu.querySelectorAll('.start-menu-item').forEach(item => {
+    item.addEventListener('click', (e) => {
+        const name = e.target.innerText;
+        console.log(`Start Menu clicked: ${name}`);
+        startMenu.style.display = 'none';
+
+        // Example: open window by name
+        const winId = `window-${name.toLowerCase().replace(/\s+/g, '-')}`;
+        const win = document.getElementById(winId);
+        if (win) {
+            win.style.display = 'block';
+            bringToFront(winId);
+        }
+    });
+});

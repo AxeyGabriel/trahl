@@ -42,9 +42,6 @@ pub async fn web_service(ctx: Arc<MasterCtx>) {
     let router = Router::new()
             .route("/sse/clock", get(sse_clock))
             .route("/", get(dashboard_page()))
-            .route("/api/stats", get(stats_content()))
-            .route("/api/queue", get(queue_rows()))
-            .route("/api/activity", get(activity_items()))
             .route("/favicon.ico", get(|| async {
                 axum::response::Redirect::permanent("/static/favicon.ico")
             }))
@@ -118,9 +115,9 @@ fn dashboard_page() -> Markup {
 
 fn statistics_window() -> Markup {
     html! {
-        div.mdi-window # window-stats style="left: 20px; top: 20px; width: 480px; height: 280px; z-index: 1004;" {
-            (window_title("window-stats", "Statistics"))
-            (resize_handles("window-stats"))
+        div.mdi-window # window-statistics style="left: 20px; top: 20px; width: 480px; height: 280px; z-index: 1004;" {
+            (window_title("window-statistics", "Statistics"))
+            (resize_handles("window-statistics"))
 
             div.window-content
                 style="height: calc(100% - 22px);" {
@@ -340,9 +337,15 @@ fn resize_handles(window_id: &str) -> Markup {
 fn taskbar() -> Markup {
     html! {
         div.taskbar {
-            button.start-button { "Start" }
+            div.start-button { "Start" }
+            div.start-menu {
+                ul.start-menu-list {
+                    li.start-menu-item { "Statistics" }
+                    li.start-menu-item { "System Logs" }
+                }
+            }
             div.taskbar-items {
-                div.taskbar-item.active data-window="window-stats" { "Statistics" }
+                div.taskbar-item.active data-window="window-statistics" { "Statistics" }
                 div.taskbar-item data-window="window-queue" { "Queue" }
                 div.taskbar-item data-window="window-activity" { "Activity" }
                 div.taskbar-item data-window="window-control" { "Control Panel" }
