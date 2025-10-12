@@ -110,7 +110,10 @@ class WindowManager {
         const saved = JSON.parse(localStorage.getItem("openWindows") || "[]");
         for (const id of saved) {
             if (!this.windows.has(id)) {
-                await this.fetchWindow(id);
+                var winObj = await this.fetchWindow(id);
+				if (winObj && winObj.zIndex >= this.zCounter) {
+					this.zCounter = winObj.zIndex;
+				}
             }
         }
     }
@@ -151,6 +154,13 @@ class WindowManager {
     // --- Bring window to front ---
     bringToFront(winObj) {
         if (!winObj || !winObj.dom) return;
+		var doIt = false;
+        this.windows.forEach(wo => {
+			if (wo.zIndex > winObj.zIndex) {
+				doIt = true;
+			}
+		});
+		if (!doIt) return;
         this.zCounter++;
 		winObj.zIndex = this.zCounter;
 		winObj.updateDOM();
@@ -337,6 +347,8 @@ class WindowManager {
 			const winObj = new Window(dom);
             this.registerWindow(winObj);
 			htmx.process(dom);
+
+			return winObj;
         } catch (err) {
             console.error("Failed to load window:", err);
         }
