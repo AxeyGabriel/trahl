@@ -3,6 +3,10 @@ name = "trahl"
 version = "0.1.0"
 edition = "2024"
 
+[build-dependencies]
+globwalk = "0.9.1"
+minifier = "0.3.6"
+
 [dependencies]
 anyhow = "1.0.100"
 assert_cmd = "2.0.17"
@@ -27,3 +31,10 @@ uuid = { version = "1.18.1", features = ["v4"] }
 zeromq = "0.4.1"
 tempfile = "3.23.0"
 regex = "1.12.1"
+maud = { version = "0.27.0", features = ["axum"] }
+axum = { version = "0.8.5", features = ["macros", "ws"] }
+tower-http = { version = "0.6.6", features = ["fs", "full"] }
+tokio-stream = { version = "0.1.17", features = ["full"] }
+futures = "0.3.31"
+futures-util = "0.3.31"
+async-stream = "0.3.6"

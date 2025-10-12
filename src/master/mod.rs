@@ -5,8 +5,6 @@ mod peers;
 mod job_manager;
 
 use tracing::{error, info};
-use std::collections::HashMap;
-use std::path::PathBuf;
 use std::sync::atomic::Ordering;
 use tokio;
 use tokio::sync::{mpsc, watch};
@@ -79,26 +77,9 @@ async fn master_runtime() {
         tx_socketserver,
     );
 
-/*    let str_f = PathBuf::from("/home/axey/trahl/test-resources/red_320x240_h264_1s.mp4");
-    let script_p = PathBuf::from("/home/axey/trahl/test-resources/test.lua");
-    
-    let str_f_2 = PathBuf::from("/home/axey/trahl/test-resources/red_320x240_h264_1s.mp4");
-    let script_p_2 = PathBuf::from("/home/axey/trahl/test-resources/test2.lua");
-    
-    let str_f_3 = PathBuf::from("/home/axey/repos/trahl/test-resources/red_320x240_h264_1s.mp4");
-    let script_p_3 = PathBuf::from("/home/axey/repos/trahl/test-resources/test_transcode.lua");
-    */
-    let str_f_4 = PathBuf::from(format!("{}/test-resources/red_320x240_h264_big.mp4", env!("CARGO_MANIFEST_DIR")));
-    let script_p_4 = PathBuf::from(format!("{}/test-resources/test_transcode.lua", env!("CARGO_MANIFEST_DIR")));
-    let hm_4 = HashMap::new();
-    
-//    _ = tx_jobs.send(JobContract::new(str_f, HashMap::new(), script_p)).await;
-//    _ = tx_jobs.send(JobContract::new(str_f_2, HashMap::new(), script_p_2)).await;
-//    _ = tx_jobs.send(JobContract::new(PathBuf::from("/home/axey/trahl"), str_f_3, PathBuf::from("/tmp/dstdir"), hm_4.clone(), script_p_3)).await;
-    _ = tx_jobs.send(JobContract::new(PathBuf::from(env!("CARGO_MANIFEST_DIR")), str_f_4, PathBuf::from("/tmp/dstdir"), hm_4.clone(), script_p_4)).await;
+    tokio::spawn(web_service(ctx.clone()));
 
     let _ = tokio::join!(
-        tokio::spawn(web_service(ctx.clone())),
         tokio::spawn(socket_server.run(ctx.clone())),
         tokio::spawn(job_manager.run(ctx.clone())),
         job_propagate_signals(ctx.clone()),
