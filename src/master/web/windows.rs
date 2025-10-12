@@ -4,13 +4,15 @@ pub fn create_window(
     id: &str,
     title: &str,
     style: &str,
+    resizeable: bool,
     content: Markup
 ) -> Markup {
     html! {
-        div.mdi-window id=(id) style=(style) {
+        div.mdi-window id=(id) style=(style) data-title=(title) {
             (window_title(id, title))
-            (resize_handles(id))
-
+            @if resizeable {
+                (resize_handles(id))
+            }
             div.window-content {
                 (content)
             }

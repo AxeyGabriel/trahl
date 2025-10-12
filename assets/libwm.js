@@ -3,11 +3,11 @@ class Window {
     constructor(dom) {
         this.dom = dom;
         this.id = dom.id;
-        this.name = dom.dataset.title || dom.id.replace('window-', '');
+      	this.name = dom.dataset.title || dom.id.replace('window-', '');
 
         const style = window.getComputedStyle(dom);
-        this.x = parseInt(style.left) || 100;
-        this.y = parseInt(style.top) || 100;
+		this.x = parseInt(style.left) || Math.floor((window.innerWidth - this.width) / 2);
+        this.y = parseInt(style.top) || Math.floor((window.innerHeight - this.height) / 2);
         this.width = parseInt(style.width) || 400;
         this.height = parseInt(style.height) || 300;
         this.maximized = dom.dataset.maximized === "true";
@@ -113,6 +113,10 @@ class WindowManager {
                 var winObj = await this.fetchWindow(id);
 				if (winObj && winObj.zIndex >= this.zCounter) {
 					this.zCounter = winObj.zIndex;
+        			this.windows.forEach(w => w.dom.classList.remove("active"));
+        			winObj.dom.classList.add("active");
+        			this.activeWindow = winObj;
+					this.updateTaskbar();
 				}
             }
         }
@@ -156,8 +160,10 @@ class WindowManager {
         if (!winObj || !winObj.dom) return;
 		var doIt = false;
         this.windows.forEach(wo => {
-			if (wo.zIndex > winObj.zIndex) {
-				doIt = true;
+			if (wo.id != winObj.id) {
+				if (wo.zIndex >= winObj.zIndex) {
+					doIt = true;
+				}
 			}
 		});
 		if (!doIt) return;
@@ -215,10 +221,11 @@ class WindowManager {
                 startMenu.style.display = 'none';
                 const id = item.dataset.window;
                 if (!this.windows.has(id)) {
-					await this.fetchWindow(id);
+                	var winObj = await this.fetchWindow(id);
             		this.bringToFront(winObj);
+				} else {
+					this.bringToFront(this.windows.get(id));
 				}
-                else this.bringToFront(this.windows.get(id));
             });
         });
     }

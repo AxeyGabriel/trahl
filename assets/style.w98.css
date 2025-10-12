@@ -30,6 +30,7 @@ body {
 	min-width: 200px;
 	min-height: 150px;
 	padding: 1px;
+	overflow: hidden;
 }
 
 .title-bar {
@@ -85,6 +86,8 @@ body {
 .window-content {
 	padding: 8px;
 	background: #c0c0c0;
+	overflow: auto;
+	height: calc(100% - 22px);
 	overflow: auto;
 }
 

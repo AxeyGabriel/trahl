@@ -105,7 +105,8 @@ fn statistics_window() -> Markup {
     windows::create_window(
         "window-statistics",
         "Statistics",
-        "left: 20px; top: 20px; width: 480px; height: 280px; z-index: 1004;",
+        "left: 20px; top: 20px; width: 480px; height: 280px;",
+        false,
         content
     )
 }
@@ -173,7 +174,8 @@ fn queue_window() -> Markup {
     windows::create_window(
         "window-queue",
         "Transcode Queue",
-        "left: 520px; top: 20px; width: 600px; height: 380px; z-index: 1003;",
+        "left: 520px; top: 20px; width: 600px; height: 380px;",
+        true,
         content
     )
 }
@@ -228,7 +230,8 @@ fn activity_window() -> Markup {
     windows::create_window(
         "window-activity",
         "Activity",
-        "left: 120px; top: 320px; width: 500px; height: 340px; z-index: 1002;",
+        "left: 120px; top: 320px; width: 500px; height: 340px;",
+        true,
         content
     )
 }
@@ -308,7 +311,8 @@ fn control_panel_window() -> Markup {
     windows::create_window(
         "window-control",
         "Control Panel",
-        "left: 640px; top: 420px; width: 360px; height: 300px; z-index: 1001;",
+        "left: 640px; top: 420px; width: 360px; height: 300px;",
+        false,
         content
     )
 }
