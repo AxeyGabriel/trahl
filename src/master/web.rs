@@ -8,11 +8,16 @@ use axum::{
     routing::get,
     response::IntoResponse,
 };
+use tower_http::trace::{
+    TraceLayer,
+    DefaultMakeSpan,
+    DefaultOnResponse,
+};
 use maud::{html, Markup};
 use reqwest::header;
 use std::sync::Arc;
 use tokio::net::TcpListener;
-use tracing::info;
+use tracing::{info, Level};
 
 use super::MasterCtx;
 
@@ -45,7 +50,10 @@ pub async fn web_service(ctx: Arc<MasterCtx>) {
             .route("/static/htmx-ext-sse.min.js", get(|| async { serve_cached_asset(ASSETS_HTMX_EXT_SSE_MIN_2_2_2_JS, "application/javascript") } ))
             .route("/static/style.css", get(|| async { serve_asset(WEB_UI_STYLE, "text/css") } ))
             .route("/static/libwm.js", get(|| async { serve_asset(ASSETS_LIBWM_JS, "application/javascript") } ))
-            .route("/static/favicon.ico", get(|| async { serve_binary_asset(ASSETS_FAVICON_ICO, "image/x-icon") } ));
+            .route("/static/favicon.ico", get(|| async { serve_binary_asset(ASSETS_FAVICON_ICO, "image/x-icon") } ))
+            .layer(TraceLayer::new_for_http()
+                .make_span_with(DefaultMakeSpan::new().level(Level::INFO))
+                .on_response(DefaultOnResponse::new().level(Level::INFO)));
 
     let listener = TcpListener::bind(master_config.web_bind_addr).await;
     match listener {
