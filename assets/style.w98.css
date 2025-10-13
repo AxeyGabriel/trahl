@@ -121,6 +121,10 @@ body {
 	font-family: 'Courier New', monospace;
 }
 
+.win98-button:hover {
+	background: #dcdcdc;      /* light grey hover */
+	border: 2px solid #808080; /* slightly darker border */
+}
 .win98-button:active {
 	border-style: inset;
 }
