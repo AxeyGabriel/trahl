@@ -362,7 +362,7 @@ class WindowManager {
     }
 
 	/* not tested */
-	function openModal(modalId) {
+	openModal(modalId) {
 			const modal = document.getElementById(modalId);
 			const overlay = document.getElementById('modal-overlay');
 
@@ -380,7 +380,7 @@ class WindowManager {
 			bringToFront(modal);
 	}
 
-	function closeModal(modalId) {
+	closeModal(modalId) {
 		const modal = document.getElementById(modalId);
 		const overlay = document.getElementById('modal-overlay');
 
