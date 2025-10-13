@@ -1,5 +1,5 @@
 mod sse;
-mod windows;
+mod window;
 mod index;
 
 use axum::{
@@ -8,10 +8,13 @@ use axum::{
     routing::get,
     response::IntoResponse,
 };
-use tower_http::trace::{
-    TraceLayer,
-    DefaultMakeSpan,
-    DefaultOnResponse,
+use tower_http::{
+    trace::{
+        TraceLayer,
+        DefaultMakeSpan,
+        DefaultOnResponse,
+    },
+    compression::CompressionLayer,
 };
 use maud::{html, Markup};
 use reqwest::header;
@@ -44,17 +47,16 @@ pub async fn web_service(ctx: Arc<MasterCtx>) {
             .route("/windows/window-control", get(control_panel_window()))
             .route("/windows/window-activity", get(activity_window()))
             .route("/windows/window-statistics", get(statistics_window()))
-            .route("/favicon.ico", get(|| async {
-                axum::response::Redirect::permanent("/static/favicon.ico")
-            }))
+            .route("/favicon.ico", get(|| async { serve_binary_asset(ASSETS_FAVICON_ICO, "image/x-icon") } ))
             .route("/static/htmx.min.js", get(|| async { serve_cached_asset(ASSETS_HTMX_MIN_2_0_7_JS, "application/javascript") } ))
             .route("/static/htmx-ext-sse.min.js", get(|| async { serve_cached_asset(ASSETS_HTMX_EXT_SSE_MIN_2_2_2_JS, "application/javascript") } ))
-            .route("/static/style.css", get(|| async { serve_asset(WEB_UI_STYLE, "text/css") } ))
-            .route("/static/libwm.js", get(|| async { serve_asset(ASSETS_LIBWM_JS, "application/javascript") } ))
+            .route("/static/style.css", get(|| async { serve_cached_asset(WEB_UI_STYLE, "text/css") } ))
+            .route("/static/libwm.js", get(|| async { serve_cached_asset(ASSETS_LIBWM_JS, "application/javascript") } ))
             .route("/static/favicon.ico", get(|| async { serve_binary_asset(ASSETS_FAVICON_ICO, "image/x-icon") } ))
             .layer(TraceLayer::new_for_http()
                 .make_span_with(DefaultMakeSpan::new().level(Level::INFO))
-                .on_response(DefaultOnResponse::new().level(Level::INFO)));
+                .on_response(DefaultOnResponse::new().level(Level::INFO)))
+            .layer(CompressionLayer::new());
 
     let listener = TcpListener::bind(master_config.web_bind_addr).await;
     match listener {
@@ -102,7 +104,7 @@ fn statistics_window() -> Markup {
         }
     };
 
-    windows::create_window(
+    window::create_window(
         "window-statistics",
         "Statistics",
         "left: 20px; top: 20px; width: 480px; height: 280px;",
@@ -151,27 +153,25 @@ fn stats_content() -> Markup {
 }
 
 fn queue_window() -> Markup {
-    let content = html! {
-        div.window-content style="height: calc(100% - 22px);" {
-            table.win98-table {
-                thead {
-                    tr {
-                        th { "FILE" }
-                        th { "STATUS" }
-                        th { "PROGRESS" }
-                        th { "WORKER" }
-                        th { "LIBRARY" }
-                        th { "ETA" }
-                    }
-                }
-                tbody # queue-tbody {
-                    (queue_rows())
+    let content = window::create_content(html! {
+        table.win98-table {
+            thead {
+                tr {
+                    th { "FILE" }
+                    th { "STATUS" }
+                    th { "PROGRESS" }
+                    th { "WORKER" }
+                    th { "LIBRARY" }
+                    th { "ETA" }
                 }
             }
+            tbody # queue-tbody {
+                (queue_rows())
+            }
         }
-    };
+    });
     
-    windows::create_window(
+    window::create_window(
         "window-queue",
         "Transcode Queue",
         "left: 520px; top: 20px; width: 600px; height: 380px;",
@@ -220,14 +220,11 @@ fn queue_rows() -> Markup {
 }
 
 fn activity_window() -> Markup {
-    let content = html! {
-        div.window-content # activity-feed
-            style="height: calc(100% - 22px);" {
-            (activity_items())
-        }
-    };
+    let content = window::create_content(html! {
+        (activity_items())
+    });
     
-    windows::create_window(
+    window::create_window(
         "window-activity",
         "Activity",
         "left: 120px; top: 320px; width: 500px; height: 340px;",
@@ -272,43 +269,47 @@ fn activity_items() -> Markup {
 }
 
 fn control_panel_window() -> Markup {
-    let content = html! {
-        div.window-content style="height: calc(100% - 22px);" {
-            div.control-section {
-                div.win98-panel {
-                    h3 { "SYSTEM CONTROLS" }
-                    div.button-group {
-                        button.win98-button {
-                            "Start All Workers"
-                        }
-                        button.win98-button {
-                            "Pause Queue"
-                        }
-                        button.win98-button {
-                            "Clear Failed Jobs"
-                        }
+    let content = window::create_content(html! {
+        div.control-section {
+            div.win98-panel {
+                h3 { "SYSTEM CONTROLS" }
+                div.button-group {
+                    button.win98-button {
+                        "Start All Workers"
                     }
-                }
-            }
-
-            div.control-section {
-                div.win98-panel {
-                    h3 { "QUICK STATS" }
-                    div.quick-stats {
-                        div { "CPU Usage: 78%" }
-                        div { "Memory: 4.2/16 GB" }
-                        div { "Disk I/O: 145 MB/s" }
-                        div { "Network: 23 MB/s" }
-                        div { "Counter: "
-                            div hx-ext="sse" sse-connect="/sse/test" sse-swap="TestEvent" #counter {}
-                        }
+                    button.win98-button {
+                        "Pause Queue"
+                    }
+                    button.win98-button {
+                        "Clear Failed Jobs"
                     }
                 }
             }
         }
-    };
 
-    windows::create_window(
+        div.control-section {
+            div.win98-panel {
+                h3 { "QUICK STATS" }
+                div.quick-stats {
+                    div { "CPU Usage: 78%" }
+                    div { "Memory: 4.2/16 GB" }
+                    div { "Disk I/O: 145 MB/s" }
+                    div { "Network: 23 MB/s" }
+                    div { "Counter: "
+                        div hx-ext="sse" sse-connect="/sse/test" sse-swap="TestEvent" #counter {}
+                    }
+                }
+            }
+        }
+        div.status-bar {
+            //When adding a status bar, adjust window-content height to: calc(100% - 44px)
+            div class="status-bar-item flex-grow" { "Item 1" }
+            div.status-bar-separator { }
+            div.status-bar-item { "Item 2" }
+        }
+    });
+
+    window::create_window(
         "window-control",
         "Control Panel",
         "left: 640px; top: 420px; width: 360px; height: 300px;",
@@ -316,3 +317,34 @@ fn control_panel_window() -> Markup {
         content
     )
 }
+
+/*
+    <!--
+        MODAL WINDOW USAGE:
+        To open: openModal('modal-example')
+        To close: closeModal('modal-example')
+        Modal windows disable all other windows until closed
+    -->
+    <div class="mdi-window modal" id="modal-example" style="left: 50%; top: 50%; width: 400px; height: 200px; z-index: 9001; transform: translate(-50%, -50%); display: none;">
+        <div class="title-bar" onmousedown="startDrag(event, 'modal-example')">
+            <span class="title-text">System Message</span>
+            <div class="title-buttons">
+                <button class="title-button" onclick="closeModal('modal-example')">✕</button>
+            </div>
+        </div>
+        <div class="window-content" style="height: calc(100% - 22px);">
+            <div style="padding: 20px; text-align: center;">
+                <div style="font-size: 14px; font-weight: bold; margin-bottom: 16px;">
+                    Are you sure you want to stop all workers?
+                </div>
+                <div style="font-size: 11px; color: #666; margin-bottom: 20px;">
+                    This will halt all active transcoding operations.
+                </div>
+                <div style="display: flex; gap: 8px; justify-content: center;">
+                    <button class="win98-button" onclick="closeModal('modal-example')">Yes</button>
+                    <button class="win98-button" onclick="closeModal('modal-example')">No</button>
+                </div>
+            </div>
+        </div>
+    </div>
+*/

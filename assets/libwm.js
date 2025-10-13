@@ -360,6 +360,40 @@ class WindowManager {
             console.error("Failed to load window:", err);
         }
     }
+
+	/* not tested */
+	function openModal(modalId) {
+			const modal = document.getElementById(modalId);
+			const overlay = document.getElementById('modal-overlay');
+
+			// Disable all non-modal windows
+			const allWindows = document.querySelectorAll('.mdi-window:not(.modal)');
+			allWindows.forEach(window => {
+				window.classList.add('disabled');
+			});
+
+			// Show overlay and modal
+			overlay.classList.add('active');
+			modal.style.display = 'block';
+
+			// Bring modal to front
+			bringToFront(modal);
+	}
+
+	function closeModal(modalId) {
+		const modal = document.getElementById(modalId);
+		const overlay = document.getElementById('modal-overlay');
+
+		// Re-enable all windows
+		const allWindows = document.querySelectorAll('.mdi-window:not(.modal)');
+		allWindows.forEach(window => {
+		window.classList.remove('disabled');
+		});
+
+		// Hide overlay and modal
+		overlay.classList.remove('active');
+		modal.style.display = 'none';
+	}
 }
 
 // --- Global init ---

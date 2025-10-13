@@ -45,3 +45,10 @@ fn resize_handles(window_id: &str) -> Markup {
     }
 }
 
+pub fn create_content(content: Markup) -> Markup {
+    html! {
+        div.window-content style="calc(100% - 22px);" {
+            (content)
+        }
+    }
+}
