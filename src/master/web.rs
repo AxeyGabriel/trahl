@@ -26,10 +26,8 @@ use super::MasterCtx;
 
 include!(concat!(env!("OUT_DIR"), "/assets.rs"));
 
-//const WEB_UI_STYLE: &'static str = ASSETS_STYLE_RED_CSS;
-//const WEB_UI_STYLE: &'static str = ASSETS_STYLE_GRAY_CSS;
-const WEB_UI_STYLE: &'static str = ASSETS_STYLE_W98_CSS;
-//const WEB_UI_STYLE: &'static str = ASSETS_STYLE_NEON_CSS;
+const WEB_UI_STYLE: &'static str = ASSETS_STYLE_BTTF_CSS;
+//const WEB_UI_STYLE: &'static str = ASSETS_STYLE_W98_CSS;
 
 pub async fn web_service(ctx: Arc<MasterCtx>) {
     let master_config = {
@@ -154,7 +152,7 @@ fn stats_content() -> Markup {
 
 fn queue_window() -> Markup {
     let content = window::create_content(html! {
-        table.win98-table {
+        table.table {
             thead {
                 tr {
                     th { "FILE" }
@@ -271,16 +269,16 @@ fn activity_items() -> Markup {
 fn control_panel_window() -> Markup {
     let content = window::create_content(html! {
         div.control-section {
-            div.win98-panel {
+            div.panel {
                 h3 { "SYSTEM CONTROLS" }
                 div.button-group {
-                    button.win98-button {
+                    button.button {
                         "Start All Workers"
                     }
-                    button.win98-button {
+                    button.button {
                         "Pause Queue"
                     }
-                    button.win98-button {
+                    button.button {
                         "Clear Failed Jobs"
                     }
                 }
@@ -288,7 +286,7 @@ fn control_panel_window() -> Markup {
         }
 
         div.control-section {
-            div.win98-panel {
+            div.panel {
                 h3 { "QUICK STATS" }
                 div.quick-stats {
                     div { "CPU Usage: 78%" }
@@ -301,20 +299,28 @@ fn control_panel_window() -> Markup {
                 }
             }
         }
+    });
+
+    let statusbar = html! {
         div.status-bar {
             //When adding a status bar, adjust window-content height to: calc(100% - 44px)
             div class="status-bar-item flex-grow" { "Item 1" }
             div.status-bar-separator { }
             div.status-bar-item { "Item 2" }
         }
-    });
+    };
+
+    let window_content = html! {
+        (content)
+        (statusbar)
+    };
 
     window::create_window(
         "window-control",
         "Control Panel",
-        "left: 640px; top: 420px; width: 360px; height: 300px;",
+        "left: 640px; top: 420px; width: 360px; height: 380px;",
         false,
-        content
+        window_content
     )
 }
 
@@ -341,8 +347,8 @@ fn control_panel_window() -> Markup {
                     This will halt all active transcoding operations.
                 </div>
                 <div style="display: flex; gap: 8px; justify-content: center;">
-                    <button class="win98-button" onclick="closeModal('modal-example')">Yes</button>
-                    <button class="win98-button" onclick="closeModal('modal-example')">No</button>
+                    <button class="button" onclick="closeModal('modal-example')">Yes</button>
+                    <button class="button" onclick="closeModal('modal-example')">No</button>
                 </div>
             </div>
         </div>

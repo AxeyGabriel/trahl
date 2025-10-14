@@ -407,3 +407,11 @@ document.addEventListener("DOMContentLoaded", () => {
     window.closeWindow = id => wm.closeWindow(wm.windows.get(id));
 });
 
+document.addEventListener('mousedown', e => {
+  if (e.target.matches('.button')) {
+    e.target.classList.add('pressed');
+  }
+});
+document.addEventListener('mouseup', e => {
+  document.querySelectorAll('.pressed').forEach(btn => btn.classList.remove('pressed'));
+});

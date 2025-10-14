@@ -8,7 +8,7 @@ pub fn create_window(
     content: Markup
 ) -> Markup {
     html! {
-        div.mdi-window id=(id) style=(style) data-title=(title) {
+        div.mdi-window id=(id) style=(style) data-title=(title) data-resizeable=(resizeable) {
             (window_title(id, title))
             @if resizeable {
                 (resize_handles(id))
@@ -47,7 +47,7 @@ fn resize_handles(window_id: &str) -> Markup {
 
 pub fn create_content(content: Markup) -> Markup {
     html! {
-        div.window-content style="calc(100% - 22px);" {
+        div.window-content {
             (content)
         }
     }
