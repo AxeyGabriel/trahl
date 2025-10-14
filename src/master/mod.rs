@@ -2,7 +2,7 @@ mod web;
 mod file_watcher;
 mod socket_server;
 mod peers;
-mod job_manager;
+mod manager;
 
 use tracing::{error, info};
 use std::sync::atomic::Ordering;
@@ -17,9 +17,9 @@ use socket_server::SocketEvent;
 
 use web::web_service;
 use socket_server::SocketServer;
-use job_manager::JobManager;
+use manager::JobManager;
 use crate::config::SystemConfig;
-use crate::master::job_manager::JobContract;
+use crate::master::manager::JobContract;
 use crate::master::peers::TxManagerMsg;
 use crate::{CONFIG, S_TERMINATE, S_RELOAD};
 
@@ -66,7 +66,7 @@ async fn master_runtime() {
         rx_jobs
     ) = mpsc::channel::<JobContract>(8);
     
-    let job_manager = JobManager::new(
+    let manager = JobManager::new(
         rx_manager,
         rx_socketserver,
         rx_jobs,
@@ -81,7 +81,7 @@ async fn master_runtime() {
 
     let _ = tokio::join!(
         tokio::spawn(socket_server.run(ctx.clone())),
-        tokio::spawn(job_manager.run(ctx.clone())),
+        tokio::spawn(manager.run(ctx.clone())),
         job_propagate_signals(ctx.clone()),
     );
 
