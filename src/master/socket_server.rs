@@ -1,6 +1,6 @@
 use std::sync::Arc;
 use zeromq::{prelude::*};
-use tracing::{info, error};
+use tracing::{info, error, warn};
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 use tokio;
@@ -74,6 +74,11 @@ impl SocketServer {
                                     if !self.peer_map.contains_key(&peer_id) {
                                         info!("New peer connected: {}", hm.identifier);
                                         
+                                        if hm.sw_version != env!("CARGO_PKG_VERSION_MAJOR") {
+                                            warn!("Peer {} has incompatible software version: {}", hm.identifier, hm.sw_version);
+                                            continue;
+                                        }
+
                                         let (
                                             tx_sock_to_peer,
                                             rx_sock_to_peer

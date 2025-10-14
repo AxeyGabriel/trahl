@@ -59,6 +59,7 @@ impl Message {
 pub struct WorkerInfo {
     pub identifier: String,
     pub simultaneous_jobs: u8,
+    pub sw_version: String,
 }
 
 #[derive(Debug, Encode, Decode, Clone, PartialEq)]

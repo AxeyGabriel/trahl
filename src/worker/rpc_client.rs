@@ -36,6 +36,7 @@ pub async fn rpc_client(
     let msg = Message::hello(WorkerInfo {
         identifier: worker_config.identifier,
         simultaneous_jobs: worker_config.parallel_jobs,
+        sw_version: env!("CARGO_PKG_VERSION_MAJOR").to_string(),
     });
 
     match zmq_helper::send_msg(
