@@ -14,6 +14,9 @@ pub fn index() -> Markup {
             }
             body {
                 (taskbar())
+                div id="modal-overlay" {
+				    (modal_conn_lost())
+                }
                 script src="/static/libwm.js" {}
             }
         }
@@ -35,9 +38,36 @@ fn taskbar() -> Markup {
             }
             div.taskbar-items { }
             div.taskbar-clock
+                id="clock"
                 hx-ext="sse"
                 sse-connect="/sse/clock"
                 sse-swap="ClockEvent" #clock {}
         }
+    }
+}
+
+fn modal_conn_lost() -> Markup {
+    html! {
+		div.mdi-window.modal id="modal-lostconn"
+            style="left: 50%; top: 50%; width: 400px; height: 200px; z-index: 9001; transform: translate(-50%, -50%); display: none;" {
+            
+            div.title-bar {
+                span.title-text { "Disconnected" }
+            }
+
+            div.window-content {
+                div style="padding: 20px; text-align: center;" {        
+                    div style="font-size: 14px; font-weight: bold; margin-bottom: 16px;" {
+                        "Connection lost to the server"
+                    }
+                    div style="font-size: 11px; color: #666; margin-bottom: 20px;" {
+                        "Please reload the page or try again later"
+                    }
+                    div style="display: flex; gap: 8px; justify-content: center;" {
+                        button.button onclick="location.reload()" { "Ok" }
+                    }
+                }
+            }
+		}
     }
 }
