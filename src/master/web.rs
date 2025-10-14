@@ -19,8 +19,10 @@ use tower_http::{
 use maud::{html, Markup};
 use reqwest::header;
 use std::sync::Arc;
-use tokio::net::TcpListener;
+use tokio::{net::TcpListener, sync::broadcast};
 use tracing::{info, Level};
+
+use crate::master::manager::ManagerEvent;
 
 use super::MasterCtx;
 
@@ -29,12 +31,21 @@ include!(concat!(env!("OUT_DIR"), "/assets.rs"));
 const WEB_UI_STYLE: &'static str = ASSETS_STYLE_BTTF_CSS;
 //const WEB_UI_STYLE: &'static str = ASSETS_STYLE_W98_CSS;
 
-pub async fn web_service(ctx: Arc<MasterCtx>) {
+#[derive(Clone)]
+struct AppState {
+    broadcast: broadcast::Sender<ManagerEvent>,
+}
+
+pub async fn web_service(ctx: Arc<MasterCtx>, ev: broadcast::Sender<ManagerEvent>) {
     let master_config = {
         let cfg = &ctx.config
         .read()
         .unwrap();
         cfg.master.clone()
+    };
+
+    let state = AppState {
+        broadcast: ev
     };
 
     let router = Router::new()
@@ -54,7 +65,8 @@ pub async fn web_service(ctx: Arc<MasterCtx>) {
             .layer(TraceLayer::new_for_http()
                 .make_span_with(DefaultMakeSpan::new().level(Level::INFO))
                 .on_response(DefaultOnResponse::new().level(Level::INFO)))
-            .layer(CompressionLayer::new());
+            .layer(CompressionLayer::new())
+            .with_state(state);
 
     let listener = TcpListener::bind(master_config.web_bind_addr).await;
     match listener {
@@ -294,7 +306,7 @@ fn control_panel_window() -> Markup {
                     div { "Disk I/O: 145 MB/s" }
                     div { "Network: 23 MB/s" }
                     div { "Counter: "
-                        div hx-ext="sse" sse-connect="/sse/test" sse-swap="TestEvent" #counter {}
+                        div hx-ext="sse" sse-connect="/sse/test" sse-swap="PeerList" #counter {}
                     }
                 }
             }
@@ -323,34 +335,3 @@ fn control_panel_window() -> Markup {
         window_content
     )
 }
-
-/*
-    <!--
-        MODAL WINDOW USAGE:
-        To open: openModal('modal-example')
-        To close: closeModal('modal-example')
-        Modal windows disable all other windows until closed
-    -->
-    <div class="mdi-window modal" id="modal-example" style="left: 50%; top: 50%; width: 400px; height: 200px; z-index: 9001; transform: translate(-50%, -50%); display: none;">
-        <div class="title-bar" onmousedown="startDrag(event, 'modal-example')">
-            <span class="title-text">System Message</span>
-            <div class="title-buttons">
-                <button class="title-button" onclick="closeModal('modal-example')">✕</button>
-            </div>
-        </div>
-        <div class="window-content" style="height: calc(100% - 22px);">
-            <div style="padding: 20px; text-align: center;">
-                <div style="font-size: 14px; font-weight: bold; margin-bottom: 16px;">
-                    Are you sure you want to stop all workers?
-                </div>
-                <div style="font-size: 11px; color: #666; margin-bottom: 20px;">
-                    This will halt all active transcoding operations.
-                </div>
-                <div style="display: flex; gap: 8px; justify-content: center;">
-                    <button class="button" onclick="closeModal('modal-example')">Yes</button>
-                    <button class="button" onclick="closeModal('modal-example')">No</button>
-                </div>
-            </div>
-        </div>
-    </div>
-*/

@@ -7,7 +7,7 @@ mod manager;
 use tracing::{error, info};
 use std::sync::atomic::Ordering;
 use tokio;
-use tokio::sync::{mpsc, watch};
+use tokio::sync::{broadcast, mpsc, watch};
 use tokio::sync::watch::{Receiver, Sender};
 use tokio::time::{sleep, Duration};
 use std::sync::Arc;
@@ -19,7 +19,7 @@ use web::web_service;
 use socket_server::SocketServer;
 use manager::JobManager;
 use crate::config::SystemConfig;
-use crate::master::manager::JobContract;
+use crate::master::manager::{JobContract, ManagerEvent};
 use crate::master::peers::TxManagerMsg;
 use crate::{CONFIG, S_TERMINATE, S_RELOAD};
 
@@ -52,6 +52,11 @@ async fn master_runtime() {
     });
 
     let (
+        tx_events,
+        _
+    ) = broadcast::channel::<ManagerEvent>(256);
+
+    let (
         tx_manager,
         rx_manager
     ) = mpsc::channel::<TxManagerMsg>(8);
@@ -70,6 +75,7 @@ async fn master_runtime() {
         rx_manager,
         rx_socketserver,
         rx_jobs,
+        tx_events.clone(),
     );
     
     let socket_server = SocketServer::new(
@@ -77,7 +83,7 @@ async fn master_runtime() {
         tx_socketserver,
     );
 
-    tokio::spawn(web_service(ctx.clone()));
+    tokio::spawn(web_service(ctx.clone(), tx_events));
 
     let _ = tokio::join!(
         tokio::spawn(socket_server.run(ctx.clone())),

@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::time::{interval, Duration};
-use tokio::sync::mpsc;
+use tokio::sync::{broadcast, mpsc};
 use tracing::{info, warn, error, debug};
 use uuid::Uuid;
 
@@ -14,6 +14,11 @@ use super::peers::TxManagerMsg;
 use crate::rpc::JobStatus as RpcJobStatus;
 use crate::rpc::{JobMsg, Message};
 use crate::utils;
+
+#[derive(Clone)]
+pub enum ManagerEvent {
+    PeerList { wi: WorkerInfo },
+}
 
 struct PeerInfo {
     tx: mpsc::Sender<RxManagerMsg>, // To send message to peer
@@ -69,6 +74,7 @@ impl JobContract {
 }
 
 pub struct JobManager {
+    tx_events: broadcast::Sender<ManagerEvent>,
     rx_from_peer: mpsc::Receiver<TxManagerMsg>,
     rx_socket_events: mpsc::Receiver<SocketEvent>,
     peer_registry: HashMap<PeerId, PeerInfo>,
@@ -81,7 +87,8 @@ impl JobManager {
     pub fn new(
         rx_from_peer: mpsc::Receiver<TxManagerMsg>,
         rx_socket_events: mpsc::Receiver<SocketEvent>,
-        rx_job: mpsc::Receiver<JobContract>
+        rx_job: mpsc::Receiver<JobContract>,
+        tx_events: broadcast::Sender<ManagerEvent>,
     ) -> Self {
         Self {
             rx_from_peer,
@@ -90,6 +97,7 @@ impl JobManager {
             pending_jobs: VecDeque::new(),
             dedup_jobs: HashSet::new(),
             rx_job,
+            tx_events,
         }
     }
 
@@ -97,9 +105,20 @@ impl JobManager {
         let mut ch_term = ctx.ch_terminate.1.clone();
         let mut ch_reload = ctx.ch_reload.1.clone();
         let mut dispatch_timer = interval(Duration::from_secs(1));
+        let mut sse_timer = interval(Duration::from_secs(1));
 
         loop {
             tokio::select!(
+                _ = sse_timer.tick() => {
+                    if let Some((_, v)) = self.peer_registry.iter().next() {
+                        let wi = v.info.clone();
+                        let peer_list = ManagerEvent::PeerList {
+                            wi
+                        };
+
+                        _ = self.tx_events.send(peer_list);
+                    }
+                },
                 _ = dispatch_timer.tick() => {
                     let selected_peer = self.peer_registry
                         .iter_mut()
