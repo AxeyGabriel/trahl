@@ -51,7 +51,7 @@ fn modal_conn_lost() -> Markup {
 		div.mdi-window.modal id="modal-lostconn"
             style="left: 50%; top: 50%; width: 400px; height: 200px; z-index: 9001; transform: translate(-50%, -50%); display: none;" {
             
-            div.title-bar {
+            div.title-bar.no-move {
                 span.title-text { "Disconnected" }
             }
 

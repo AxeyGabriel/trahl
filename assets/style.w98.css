@@ -47,6 +47,10 @@ body {
 	height: 22px;
 }
 
+.title-bar.no-move {
+	cursor: default;
+}
+
 .title-text {
 	font-size: 12px;
 	font-weight: bold;
