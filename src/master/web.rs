@@ -23,7 +23,7 @@ use std::sync::Arc;
 use tokio::{net::TcpListener, sync::broadcast};
 use tracing::{info, Level};
 
-use crate::master::manager::ManagerEvent;
+use crate::master::manager::events::ManagerEvent;
 
 use super::MasterCtx;
 
@@ -169,16 +169,19 @@ fn queue_window() -> Markup {
             thead {
                 tr {
                     th { "FILE" }
-                    th { "STATUS" }
-                    th { "PROGRESS" }
-                    th { "WORKER" }
                     th { "LIBRARY" }
+                    th { "STATUS" }
+                    th { "WORKER" }
+                    th { "MILESTONE" }
+                    th { "PROGRESS" }
                     th { "ETA" }
                 }
             }
-            tbody # queue-tbody {
-                (queue_rows())
-            }
+            tbody 
+                hx-ext="sse"
+                sse-connect="/sse/manager_events"
+                sse-swap="JobQueue"
+                # queue-tbody { }
         }
     });
     
@@ -191,44 +194,6 @@ fn queue_window() -> Markup {
     )
 }
 
-fn queue_rows() -> Markup {
-    html! {
-        tr {
-            td { "movie_2023_4k.mkv" }
-            td { span.status-badge.status-processing { "PROCESSING" } }
-            td {
-                div.progress-bar {
-                    div.progress-fill style="width: 67%;" {}
-                }
-                span { "67%" }
-            }
-            td { "Worker-03" }
-            td { "Movies" }
-            td { "12m 34s" }
-        }
-        tr {
-            td { "series_s01e05.mp4" }
-            td { span.status-badge.status-queued { "QUEUED" } }
-            td { "-" }
-            td { "-" }
-            td { "TV Shows" }
-            td { "Pending" }
-        }
-        tr {
-            td { "documentary_hd.avi" }
-            td { span.status-badge.status-processing { "PROCESSING" } }
-            td {
-                div.progress-bar {
-                    div.progress-fill style="width: 23%;" {}
-                }
-                span { "23%" }
-            }
-            td { "Worker-07" }
-            td { "Documentaries" }
-            td { "45m 12s" }
-        }
-    }
-}
 
 fn activity_window() -> Markup {
     let content = window::create_content(html! {

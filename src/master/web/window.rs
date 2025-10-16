@@ -9,29 +9,22 @@ pub fn create_window(
 ) -> Markup {
     html! {
         div.mdi-window id=(id) style=(style) data-title=(title) data-resizeable=(resizeable) {
-            (window_title(id, title))
+            (window_title(id, title, resizeable))
             @if resizeable {
                 (resize_handles(id))
             }
-            div.window-content {
-                (content)
-            }
+            (content)
         }
     }
 }
 
-fn window_title(window_id: &str, title: &str) -> Markup {
+fn window_title(window_id: &str, title: &str, maximizable: bool) -> Markup {
     html! {
         div.title-bar onmousedown=(format!("startDrag(event, '{}')", window_id)) {
             span.title-text { (title) }
             div.title-buttons {
-/*                button.title-button
-                    hx-get=(format!("/windows/{}", window_id))
-                    hx-target=(format!("#{}", window_id))
-                    hx-swap="outerHTML" { "⟳" }
-*/
                 button.title-button onclick=(format!("refreshWindow('{}')", window_id)) { "⟳" }
-                button.title-button onclick=(format!("maximizeWindow('{}')", window_id)) { "□" }
+                @if maximizable { button.title-button onclick=(format!("maximizeWindow('{}')", window_id)) { "□" } }
                 button.title-button onclick=(format!("closeWindow('{}')", window_id)) { "✕" }
             }
         }

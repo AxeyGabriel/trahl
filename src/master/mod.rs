@@ -19,7 +19,7 @@ use web::web_service;
 use socket_server::SocketServer;
 use manager::JobManager;
 use crate::config::SystemConfig;
-use crate::master::manager::{JobContract, ManagerEvent};
+use crate::master::manager::{JobContract, events::ManagerEvent};
 use crate::master::peers::TxManagerMsg;
 use crate::{CONFIG, S_TERMINATE, S_RELOAD};
 

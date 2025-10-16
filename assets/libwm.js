@@ -309,8 +309,13 @@ class WindowManager {
 		const dom = winObj.dom;
 		if (dom.dataset.maximized === "true") {
 			winObj.maximized = false;
+            winObj.x = winObj._restore.x;
+            winObj.y = winObj._restore.y;
+            winObj.width = winObj._restore.width;
+            winObj.height = winObj._restore.height;
 		} else {
 			winObj.maximized = true;
+			winObj._restore = { x: winObj.x, y: winObj.y, width: winObj.width, height: winObj.height };
 		}
 		winObj.updateDOM();
 		winObj.saveToStorage();
@@ -360,6 +365,7 @@ class WindowManager {
 	async refreshWindow(w) {
 		const id = w.id;
 		const dom = w.dom;
+		var isActive = dom.classList.contains('active');
 
 		// Abort htmx SSE & polling
 		dom.querySelectorAll("[hx-ext='sse'], [hx-trigger*='every']").forEach(el => {
@@ -368,14 +374,14 @@ class WindowManager {
 		});
 
 		this.windows.delete(w.id);
-		
-		this.saveOpenWindows();
-		this.updateTaskbar();
-		//this.closeWindow(w);
+	
 		var winObj = await this.fetchWindow(id);
 		this.bringToFront(winObj);
-		
 		dom.remove();
+		if (isActive) {
+			winObj.dom.classList.add('active');
+		}
+		this.updateTaskbar();
 	}
 
 	openModal(modalId) {
