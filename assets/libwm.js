@@ -310,10 +310,6 @@ class WindowManager {
 		if (dom.dataset.maximized === "true") {
 			winObj.maximized = false;
 		} else {
-			dom.dataset.left = dom.style.left;
-			dom.dataset.top = dom.style.top;
-			dom.dataset.width = dom.style.width;
-			dom.dataset.height = dom.style.height;
 			winObj.maximized = true;
 		}
 		winObj.updateDOM();
@@ -361,6 +357,27 @@ class WindowManager {
 		}
 	}
 
+	async refreshWindow(w) {
+		const id = w.id;
+		const dom = w.dom;
+
+		// Abort htmx SSE & polling
+		dom.querySelectorAll("[hx-ext='sse'], [hx-trigger*='every']").forEach(el => {
+			if (el._htmx_sse_source?.close) el._htmx_sse_source.close();
+			if (el._htmxInterval) clearInterval(el._htmxInterval);
+		});
+
+		this.windows.delete(w.id);
+		
+		this.saveOpenWindows();
+		this.updateTaskbar();
+		//this.closeWindow(w);
+		var winObj = await this.fetchWindow(id);
+		this.bringToFront(winObj);
+		
+		dom.remove();
+	}
+
 	openModal(modalId) {
 			const modal = document.getElementById(modalId);
 			const overlay = document.getElementById('modal-overlay');
@@ -394,6 +411,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 	window.startDrag = (e, id) => wm.startDrag(e, wm.windows.get(id));
 	window.startResize = (e, id, dir) => wm.startResize(e, wm.windows.get(id), dir);
+	window.refreshWindow = id => wm.refreshWindow(wm.windows.get(id));
 	window.maximizeWindow = id => wm.maximizeWindow(wm.windows.get(id));
 	window.closeWindow = id => wm.closeWindow(wm.windows.get(id));
 });

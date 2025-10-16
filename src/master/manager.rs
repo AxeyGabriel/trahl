@@ -17,7 +17,10 @@ use crate::utils;
 
 #[derive(Clone)]
 pub enum ManagerEvent {
-    PeerList { wi: WorkerInfo },
+    PeerList { wi: WorkerInfo }, 
+    /* PeerList: Vec<EventDataPeerInfo> {rpc hello}
+     * 
+     */
 }
 
 struct PeerInfo {

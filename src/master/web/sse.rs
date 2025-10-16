@@ -28,7 +28,7 @@ pub async fn clock() -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
     .keep_alive(KeepAlive::default())
 }
 
-pub async fn test(
+pub async fn manager_events(
     State(state): State<AppState>
 ) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
     Sse::new(try_stream! {

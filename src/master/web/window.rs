@@ -25,6 +25,12 @@ fn window_title(window_id: &str, title: &str) -> Markup {
         div.title-bar onmousedown=(format!("startDrag(event, '{}')", window_id)) {
             span.title-text { (title) }
             div.title-buttons {
+/*                button.title-button
+                    hx-get=(format!("/windows/{}", window_id))
+                    hx-target=(format!("#{}", window_id))
+                    hx-swap="outerHTML" { "⟳" }
+*/
+                button.title-button onclick=(format!("refreshWindow('{}')", window_id)) { "⟳" }
                 button.title-button onclick=(format!("maximizeWindow('{}')", window_id)) { "□" }
                 button.title-button onclick=(format!("closeWindow('{}')", window_id)) { "✕" }
             }

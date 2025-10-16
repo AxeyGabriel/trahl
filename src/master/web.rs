@@ -1,6 +1,7 @@
 mod sse;
 mod window;
 mod index;
+mod control_panel;
 
 use axum::{
     http,
@@ -50,10 +51,10 @@ pub async fn web_service(ctx: Arc<MasterCtx>, ev: broadcast::Sender<ManagerEvent
 
     let router = Router::new()
             .route("/sse/clock", get(sse::clock))
-            .route("/sse/test", get(sse::test))
+            .route("/sse/manager_events", get(sse::manager_events))
             .route("/", get(index::index()))
             .route("/windows/window-queue", get(queue_window()))
-            .route("/windows/window-control", get(control_panel_window()))
+            .route("/windows/window-control", get(control_panel::window()))
             .route("/windows/window-activity", get(activity_window()))
             .route("/windows/window-statistics", get(statistics_window()))
             .route("/favicon.ico", get(|| async { serve_binary_asset(ASSETS_FAVICON_ICO, "image/x-icon") } ))
@@ -278,60 +279,24 @@ fn activity_items() -> Markup {
     }
 }
 
-fn control_panel_window() -> Markup {
-    let content = window::create_content(html! {
-        div.control-section {
-            div.panel {
-                h3 { "SYSTEM CONTROLS" }
-                div.button-group {
-                    button.button {
-                        "Start All Workers"
-                    }
-                    button.button {
-                        "Pause Queue"
-                    }
-                    button.button {
-                        "Clear Failed Jobs"
-                    }
-                }
-            }
-        }
-
-        div.control-section {
-            div.panel {
-                h3 { "QUICK STATS" }
-                div.quick-stats {
-                    div { "CPU Usage: 78%" }
-                    div { "Memory: 4.2/16 GB" }
-                    div { "Disk I/O: 145 MB/s" }
-                    div { "Network: 23 MB/s" }
-                    div { "Counter: "
-                        div hx-ext="sse" sse-connect="/sse/test" sse-swap="PeerList" #counter {}
-                    }
-                }
-            }
-        }
-    });
-
-    let statusbar = html! {
-        div.status-bar {
-            //When adding a status bar, adjust window-content height to: calc(100% - 44px)
-            div class="status-bar-item flex-grow" { "Item 1" }
-            div.status-bar-separator { }
-            div.status-bar-item { "Item 2" }
-        }
-    };
-
-    let window_content = html! {
-        (content)
-        (statusbar)
-    };
-
-    window::create_window(
-        "window-control",
-        "Control Panel",
-        "left: 640px; top: 420px; width: 360px; height: 380px;",
-        false,
-        window_content
-    )
-}
+/*
+ * Windows:
+ * Library statistics: {lib}
+ *  Job success and failure number
+ *  Codec, container and resolution number
+ *  Space saved, number of jobs executed, number of files, mean ratio of size before vs after
+ * Control Panel
+ *  Pause jobs, continue jobs
+ *  Per library:
+ *      Script
+ *      Clear job history
+ *      Full scan
+ * Job Queue
+ *  Show jobs queued and in progress, ordered by in progress
+ * Job History
+ *  Show finished jobs
+ * Job Log
+ *  Show logs grouped by milestones
+ * Workers Overview
+ *  Identity, cpu/gpu usage, fs mapped or not, fs remappings
+ */
