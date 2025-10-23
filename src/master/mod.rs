@@ -1,3 +1,4 @@
+mod db;
 mod web;
 mod file_watcher;
 mod socket_server;
@@ -50,6 +51,16 @@ async fn master_runtime() {
         ch_reload: watch::channel(false),
         config: CONFIG.get().expect("configuration not initialized").clone(),
     });
+
+    let dbpath = {
+        ctx.clone()
+            .config
+            .read()
+            .unwrap()
+            .master.db_path
+            .clone()
+    };
+    db::init_db(dbpath).await;
 
     let (
         tx_events,

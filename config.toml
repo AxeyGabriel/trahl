@@ -10,6 +10,7 @@ EXCLUDECODEC = "h265"
 [master]
 web_bind_addr = "0.0.0.0:8089"
 orch_bind_addr = "127.0.0.1:8245"
+db_path = "sqlite.db"
 
 [worker]
 master_addr = "127.0.0.1:8245"

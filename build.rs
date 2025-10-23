@@ -74,5 +74,6 @@ fn main() {
 
     fs::write(&dest_path, embedded_assets).expect("Unable to write file");
     println!("cargo:rerun-if-changed=assets/");
+    println!("cargo:rerun-if-changed=migrations");
 }
 

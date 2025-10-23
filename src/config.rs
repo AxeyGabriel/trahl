@@ -18,6 +18,7 @@ pub struct FsRemap {
 pub struct MasterConfig {
     pub orch_bind_addr: SocketAddr,
     pub web_bind_addr: SocketAddr,
+    pub db_path: PathBuf,
 }
 
 #[cfg_attr(test, derive(PartialEq, Eq))]
@@ -93,6 +94,7 @@ impl Default for MasterConfig {
         MasterConfig {
             orch_bind_addr: "0.0.0.0:1849".parse().expect("Error setting orch_bind_addr"),
             web_bind_addr: "0.0.0.0:1850".parse().expect("Error setting web_bind_addr"),
+            db_path: "sqlite.db".into(),
         }
     }
 }
