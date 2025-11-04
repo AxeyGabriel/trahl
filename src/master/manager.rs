@@ -19,6 +19,7 @@ use crate::rpc::JobStatus as RpcJobStatus;
 use crate::rpc::{JobMsg, Message};
 use crate::utils;
 use events::ManagerEvent;
+use super::db;
 
 struct PeerInfo {
     tx: mpsc::Sender<RxManagerMsg>, // To send message to peer
@@ -180,12 +181,14 @@ impl JobManager {
                 Some(event) = self.rx_socket_events.recv() => {
                     match event {
                         SocketEvent::PeerConnected(peer_id, tx, info) => {
+                            let identifier = info.identifier.clone();
                             let peer_info = PeerInfo {
                                 tx,
                                 info,
                                 jobs: HashMap::new(),
                             };
                             self.peer_registry.insert(peer_id, peer_info);
+                            db::upsert_worker(identifier.as_str()).await;
                         },
                         SocketEvent::PeerDisconnected(peer_id) => {
                             if let Some(peer) = self.peer_registry.get(&peer_id) {

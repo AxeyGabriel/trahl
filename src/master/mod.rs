@@ -60,6 +60,7 @@ async fn master_runtime() {
             .clone()
     };
     db::init_db(dbpath).await;
+    db::merge_libs_config(&ctx.config.read().unwrap().jobs).await;
 
     let (
         tx_events,

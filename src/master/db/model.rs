@@ -1,11 +1,11 @@
-use chrono::NaiveDateTime;
+use chrono::{DateTime, Utc};
 use sqlx::FromRow;
 
 #[derive(Debug, Clone, FromRow)]
 pub struct RowWorker {
     pub id: i64,
     pub identifier: String,
-    pub last_conn_at: Option<NaiveDateTime>,
+    pub last_conn_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Clone, FromRow)]
@@ -16,7 +16,7 @@ pub struct RowScript {
     pub script: String,
     pub source: String,
     pub description: Option<String>,
-    pub updated_at: NaiveDateTime,
+    pub updated_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, FromRow)]
@@ -28,7 +28,7 @@ pub struct RowLibrary {
     pub enabled: i64,
     pub path: String,
     pub script_id: Option<i64>,
-    pub last_scanned_at: Option<NaiveDateTime>,
+    pub last_scanned_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Clone, FromRow)]
@@ -47,7 +47,7 @@ pub struct RowFileEntry {
     pub file_path: String,
     pub file_size: Option<i64>,
     pub hash: Option<String>,
-    pub discovered_at: NaiveDateTime,
+    pub discovered_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, FromRow)]
@@ -59,7 +59,7 @@ pub struct RowJob {
     pub log_path: Option<String>,
     pub output_file: Option<String>,
     pub output_size: Option<i64>,
-    pub created_at: NaiveDateTime,
-    pub started_at: Option<NaiveDateTime>,
-    pub finished_at: Option<NaiveDateTime>,
+    pub created_at: DateTime<Utc>,
+    pub started_at: Option<DateTime<Utc>>,
+    pub finished_at: Option<DateTime<Utc>>,
 }
