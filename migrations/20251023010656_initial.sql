@@ -8,7 +8,7 @@ PRAGMA foreign_keys = ON;
 CREATE TABLE workers (
 	id				INTEGER PRIMARY KEY AUTOINCREMENT,
 	identifier		TEXT NOT NULL UNIQUE,
-	last_conn_at	DATETIME,
+	last_conn_at	DATETIME
 );
 
 -- Lua Scripts
@@ -17,20 +17,22 @@ CREATE TABLE script (
 	name		TEXT NOT NULL,
 	hash		TEXT NOT NULL,
 	script		TEXT NOT NULL,
-	location	TEXT,
+	source		TEXT NOT NULL, -- http:// https:// file:// dblocal
 	description TEXT,
 	updated_at	DATETIME DEFAULT CURRENT_TIMESTAMP,
 	UNIQUE(name, hash)
-)
+);
 
 -- Root directories scanned recursively by the system
 CREATE TABLE library (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
 	name			TEXT NOT NULL UNIQUE,
+	source			TEXT NOT NULL, -- dblocal, conf
+	destination		TEXT NOT NULL,
 	enabled			INTEGER NOT NULL,
     path            TEXT NOT NULL UNIQUE,
 	script_id		INTEGER REFERENCES script(id),
-    last_scanned_at DATETIME,
+    last_scanned_at DATETIME
 );
 
 CREATE TABLE variables (
@@ -60,8 +62,7 @@ CREATE TABLE job (
     log_path        TEXT,
     output_file     TEXT,
     output_size     INTEGER,
-    ratio           REAL,
-    created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     started_at      DATETIME,
-    finished_at     DATETIME,
+    finished_at     DATETIME
 );

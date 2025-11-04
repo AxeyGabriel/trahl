@@ -1,3 +1,5 @@
+mod model;
+
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 use tracing::info;

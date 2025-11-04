@@ -53,8 +53,7 @@ async fn master_runtime() {
     });
 
     let dbpath = {
-        ctx.clone()
-            .config
+        ctx.config
             .read()
             .unwrap()
             .master.db_path
