@@ -3,6 +3,7 @@ use std::{
     sync::Arc,
     path::{
         PathBuf,
+        Path,
     },
 };
 use chrono::Utc;
@@ -119,10 +120,6 @@ impl Librarian {
 }
 
 async fn task_full_scan_library(pool: &Pool<Sqlite>, lib_id: i64) -> Result<()> {
-        // get library name and path from id and test if it's enabled
-        // for each file query FileEntry file_path joined with Job output_file
-        // If file does not exist, create FileEntry, hash file, calculate size
-        // If file does exist, do nothing
         if let Some(library) = sqlx::query_as!(
             Library,
             r#"
@@ -136,7 +133,7 @@ async fn task_full_scan_library(pool: &Pool<Sqlite>, lib_id: i64) -> Result<()> 
         .await? {
             info!("Starting scan for library name={} id={}", library.name, library.id);
 
-            scan_folder(pool, &library).await?;
+            scan_folder(pool, &library, None).await?;
         } else {
             info!("Cannot find library with id={}", lib_id);
         }
@@ -144,15 +141,18 @@ async fn task_full_scan_library(pool: &Pool<Sqlite>, lib_id: i64) -> Result<()> 
     Ok(())
 }
 
-async fn scan_folder(pool: &Pool<Sqlite>, library: &Library) -> Result<()> {
-    let library_path = PathBuf::from(&library.path);
+async fn scan_folder(pool: &Pool<Sqlite>, library: &Library, path_override: Option<&Path>) -> Result<()> {
+    let library_path: PathBuf = path_override
+        .map(|p| p.to_path_buf())
+        .unwrap_or_else(|| PathBuf::from(&library.path));
+
     let mut entries = fs::read_dir(library_path).await?;
 
     while let Some(entry) = entries.next_entry().await? {
         let path = entry.path();
         trace!("Discovered file={}", path.to_string_lossy().to_string());
         if path.is_dir() {
-//            Box::pin(scan_folder(pool, &library)).await?;
+            Box::pin(scan_folder(pool, &library, Some(&path))).await?;
             continue;
         }
 
