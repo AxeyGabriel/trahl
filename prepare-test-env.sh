@@ -22,11 +22,12 @@ $FFMPEG -y -f lavfi -i color=c=red:s=320x240:d=1 -c:v libx265 -t 1 "$TARGET_DIR/
 $DD if=/dev/urandom of="$TARGET_DIR/100_bytes_file.bin" bs=1 count=100
 
 # Create test library
-LVL1_N=10
-LVL2_N=40
-TEST1_N=3
-TEST2_N=4
+LVL1_N=20
+LVL2_N=20
+TEST1_N=5
+TEST2_N=5
 for i in $(seq 1 $LVL1_N); do
+	(
     LEVEL1="$TEST_LIBRARY_DIR/dir_$i"
     mkdir -p "$LEVEL1"
 
@@ -40,24 +41,26 @@ for i in $(seq 1 $LVL1_N); do
 
         # 2 H.264 videos
         for k in $(seq 1 $TEST1_N); do
-            TARGET="$LEVEL2/red_320x240_h264_1s_$k.mp4"
-			cp "$TARGET_DIR/red_320x240_h264_1s.mp4" "$TARGET"
+            TARGET="$LEVEL2/red_320x240_h264_big_$k.mp4"
+			ln -s "$TARGET_DIR/red_320x240_h264_big.mp4" "$TARGET"
         done
 
         # 3 H.265 videos
         for k in $(seq 1 $TEST2_N); do
             TARGET="$LEVEL2/red_320x240_h265_1s_$k.mp4"
-			cp "$TARGET_DIR/red_320x240_h265_1s.mp4" "$TARGET"
+			ln -s "$TARGET_DIR/red_320x240_h265_1s.mp4" "$TARGET"
         done
     done
+	) &
 done
+wait
 for k in $(seq 1 $TEST1_N); do
-	TARGET="$TEST_LIBRARY_DIR/red_320x240_h264_1s_$k.mp4"
-	cp "$TARGET_DIR/red_320x240_h264_1s.mp4" "$TARGET"
+	TARGET="$TEST_LIBRARY_DIR/red_320x240_h264_big_$k.mp4"
+	ln -s "$TARGET_DIR/red_320x240_h264_big.mp4" "$TARGET"
 done
 for k in $(seq 1 $TEST2_N); do
 	TARGET="$TEST_LIBRARY_DIR/red_320x240_h265_1s_$k.mp4"
-	cp "$TARGET_DIR/red_320x240_h265_1s.mp4" "$TARGET"
+	ln -s "$TARGET_DIR/red_320x240_h265_1s.mp4" "$TARGET"
 done
 
 # Create test lua script

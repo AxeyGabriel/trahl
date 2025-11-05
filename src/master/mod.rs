@@ -109,7 +109,7 @@ async fn master_runtime() {
     let _ = tokio::join!(
         socket_server.run(ctx.clone()),
         manager.run(ctx.clone()),
-        librarian.run(ctx.clone()),
+        tokio::spawn(librarian.run(ctx.clone())),
         job_propagate_signals(ctx.clone()),
     );
 

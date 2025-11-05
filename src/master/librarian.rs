@@ -150,7 +150,7 @@ async fn scan_folder(pool: &Pool<Sqlite>, library: &Library, path_override: Opti
 
     while let Some(entry) = entries.next_entry().await? {
         let path = entry.path();
-        trace!("Discovered file={}", path.to_string_lossy().to_string());
+
         if path.is_dir() {
             Box::pin(scan_folder(pool, &library, Some(&path))).await?;
             continue;
@@ -193,14 +193,11 @@ async fn scan_folder(pool: &Pool<Sqlite>, library: &Library, path_override: Opti
         };
 
         let file_size = metadata.len() as i64;
-        trace!("File={} detected size={}", path.to_string_lossy().to_string(), file_size);
         
         let path_cloned = path.clone();
         let hash = task::spawn_blocking(move || utils::chunked_hash(path_cloned))
         .await
         .unwrap()?;
-
-        trace!("file={} calculated hash={}", path.to_string_lossy().to_string(), hash);
 
         sqlx::query!(
             r#"
