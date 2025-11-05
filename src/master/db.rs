@@ -1,4 +1,4 @@
-mod model;
+pub mod model;
 
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
@@ -53,11 +53,9 @@ pub async fn init_db(path: PathBuf) {
 }
 
 async fn load_lua_script(path: &PathBuf) -> (String, String) {
-    // Read Lua script asynchronously
     let content = tokio::fs::read_to_string(path)
         .await
-        //.unwrap_or_else(|_| panic!("Failed to read Lua script: {}", path.display()));
-        .unwrap_or("err".to_string());
+        .unwrap_or_else(|_| panic!("Failed to read Lua script: {}", path.display()));
 
     // Compute fast 64-bit xxHash and convert to hex
     let hash = format!("{:016x}", xxh3_64(content.as_bytes()));
@@ -141,9 +139,10 @@ pub async fn merge_libs_config(configs: &[JobConfig]) {
         let updated = sqlx::query!(
             r#"
             UPDATE library
-            SET destination = ?, enabled = ?, script_id = ?, last_scanned_at = ?
+            SET path = ?, destination = ?, enabled = ?, script_id = ?, last_scanned_at = ?
             WHERE name = ? AND source = 'conf'
             "#,
+            src_str,
             dest_str,
             enabled_int,
             script_id,

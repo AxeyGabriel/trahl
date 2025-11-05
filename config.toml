@@ -1,9 +1,9 @@
 [[jobs]]
 name = "Transcode Movies"
 enabled = true
-source_path = "/media/source/movies"
+source_path = "test-resources/test-library"
 destination_path = "/media/destination/movies"
-lua_script = "/configs/scripts/movie.lua"
+lua_script = "test-resources/test_transcode.lua"
 [jobs.variables]
 EXCLUDECODEC = "h265"
 
@@ -21,5 +21,5 @@ fs_remaps = [
 ]
 
 [log]
-level = "debug"
+level = "trace"
 file = "/dev/stdout"

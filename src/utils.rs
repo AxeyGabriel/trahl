@@ -3,6 +3,9 @@ use tokio::fs;
 use uuid::Uuid;
 use crate::config::FsRemap;
 use anyhow::Result;
+use std::fs::File;
+use std::io::{BufReader, Read};
+use xxhash_rust::xxh3::Xxh3;
 
 pub fn remap_to_worker(path: &Path, remaps: &Option<Vec<FsRemap>>) -> PathBuf {
     if let Some(vec) = remaps {
@@ -60,4 +63,24 @@ pub fn uuid_to_u128(value: Uuid) -> u128 {
 
 pub fn u128_to_uuid(value: u128) -> Uuid {
     Uuid::from_bytes(value.to_be_bytes())
+}
+
+pub fn chunked_hash(path: impl AsRef<Path>) -> Result<String> {
+    const CHUNK_SIZE: usize = 32 * 1024 * 1024; // 32 MB buffer
+
+    let path = path.as_ref();
+    let file = File::open(path)?;
+    let mut reader = BufReader::new(file);
+    let mut buffer = vec![0u8; CHUNK_SIZE];
+    let mut hasher = Xxh3::new();
+
+    loop {
+        let n = reader.read(&mut buffer)?;
+        if n == 0 {
+            break;
+        }
+        hasher.update(&buffer[..n]);
+    }
+
+    Ok(format!("{:032x}", hasher.digest128()))
 }

@@ -35,7 +35,7 @@ fn main() -> Result<(), Error> {
             std::process::exit(1);
         }
     };
-
+    
     let config = match SystemConfig::parse(&args.config_file) {
         Ok(cfg) => cfg,
         Err(e) => {

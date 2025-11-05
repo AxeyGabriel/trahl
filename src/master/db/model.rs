@@ -1,26 +1,26 @@
-use chrono::{DateTime, Utc};
+use chrono::NaiveDateTime;
 use sqlx::FromRow;
 
 #[derive(Debug, Clone, FromRow)]
-pub struct RowWorker {
+pub struct Worker {
     pub id: i64,
     pub identifier: String,
-    pub last_conn_at: Option<DateTime<Utc>>,
+    pub last_conn_at: Option<NaiveDateTime>,
 }
 
 #[derive(Debug, Clone, FromRow)]
-pub struct RowScript {
+pub struct Script {
     pub id: i64,
     pub name: String,
     pub hash: String,
     pub script: String,
     pub source: String,
     pub description: Option<String>,
-    pub updated_at: DateTime<Utc>,
+    pub updated_at: NaiveDateTime,
 }
 
 #[derive(Debug, Clone, FromRow)]
-pub struct RowLibrary {
+pub struct Library {
     pub id: i64,
     pub name: String,
     pub source: String,
@@ -28,11 +28,11 @@ pub struct RowLibrary {
     pub enabled: i64,
     pub path: String,
     pub script_id: Option<i64>,
-    pub last_scanned_at: Option<DateTime<Utc>>,
+    pub last_scanned_at: Option<NaiveDateTime>,
 }
 
 #[derive(Debug, Clone, FromRow)]
-pub struct RowVariable {
+pub struct Variable {
     pub id: i64,
     pub key: String,
     pub value: Option<String>,
@@ -40,18 +40,18 @@ pub struct RowVariable {
 }
 
 #[derive(Debug, Clone, FromRow)]
-pub struct RowFileEntry {
+pub struct FileEntry {
     pub id: i64,
     pub library_id: i64,
     pub job_id: Option<i64>,
     pub file_path: String,
     pub file_size: Option<i64>,
     pub hash: Option<String>,
-    pub discovered_at: DateTime<Utc>,
+    pub discovered_at: NaiveDateTime,
 }
 
 #[derive(Debug, Clone, FromRow)]
-pub struct RowJob {
+pub struct Job {
     pub id: i64,
     pub file_id: i64,
     pub worker_id: Option<i64>,
@@ -59,7 +59,7 @@ pub struct RowJob {
     pub log_path: Option<String>,
     pub output_file: Option<String>,
     pub output_size: Option<i64>,
-    pub created_at: DateTime<Utc>,
-    pub started_at: Option<DateTime<Utc>>,
-    pub finished_at: Option<DateTime<Utc>>,
+    pub created_at: NaiveDateTime,
+    pub started_at: Option<NaiveDateTime>,
+    pub finished_at: Option<NaiveDateTime>,
 }

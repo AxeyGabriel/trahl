@@ -8,6 +8,7 @@ DD=`which dd`
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "$0")" && pwd)"
 TARGET_DIR="$SCRIPT_DIR/test-resources"
+TEST_LIBRARY_DIR="$TARGET_DIR/test-library"
 
 rm -rf "$TARGET_DIR"
 mkdir "$TARGET_DIR"
@@ -19,6 +20,41 @@ $FFMPEG -y -f lavfi -i color=c=red:s=320x240:d=1 -c:v libx265 -t 1 "$TARGET_DIR/
 
 # Create known sized files
 $DD if=/dev/urandom of="$TARGET_DIR/100_bytes_file.bin" bs=1 count=100
+
+# Create test library
+for i in $(seq 1 10); do
+    LEVEL1="$TEST_LIBRARY_DIR/dir_$i"
+    mkdir -p "$LEVEL1"
+
+    # Inner loop: 10 folders inside each level 1
+    for j in $(seq 1 10); do
+		echo "Creating directory: $i:$j"
+        LEVEL2="$LEVEL1/subdir_$j"
+        mkdir -p "$LEVEL2"
+
+        echo "Generating files in: $LEVEL2"
+
+        # 2 H.264 videos
+        for k in $(seq 1 2); do
+            TARGET="$LEVEL2/red_320x240_h264_1s_$k.mp4"
+			cp "$TARGET_DIR/red_320x240_h264_1s.mp4" "$TARGET"
+        done
+
+        # 3 H.265 videos
+        for k in $(seq 1 3); do
+            TARGET="$LEVEL2/red_320x240_h265_1s_$k.mp4"
+			cp "$TARGET_DIR/red_320x240_h265_1s.mp4" "$TARGET"
+        done
+    done
+done
+for k in $(seq 1 2); do
+	TARGET="$TEST_LIBRARY_DIR/red_320x240_h264_1s_$k.mp4"
+	cp "$TARGET_DIR/red_320x240_h264_1s.mp4" "$TARGET"
+done
+for k in $(seq 1 3); do
+	TARGET="$TEST_LIBRARY_DIR/red_320x240_h265_1s_$k.mp4"
+	cp "$TARGET_DIR/red_320x240_h265_1s.mp4" "$TARGET"
+done
 
 # Create test lua script
 cat > "$TARGET_DIR/test.lua" <<EOF

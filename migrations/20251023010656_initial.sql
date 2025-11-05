@@ -46,7 +46,7 @@ CREATE TABLE variables (
 CREATE TABLE file_entry (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     library_id      INTEGER NOT NULL REFERENCES library(id) ON DELETE CASCADE,
-    job_id			INTEGER REFERENCES job(id) ON DELETE CASCADE,
+    job_id			INTEGER REFERENCES job(id) ON DELETE CASCADE DEFAULT NULL,
     file_path       TEXT NOT NULL UNIQUE, -- relative to library root path
     file_size       INTEGER,
     hash            TEXT,
