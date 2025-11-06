@@ -23,7 +23,7 @@ $DD if=/dev/urandom of="$TARGET_DIR/100_bytes_file.bin" bs=1 count=100
 
 # Create test library
 LVL1_N=20
-LVL2_N=20
+LVL2_N=10
 TEST1_N=5
 TEST2_N=5
 for i in $(seq 1 $LVL1_N); do

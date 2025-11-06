@@ -5,6 +5,7 @@ use std::{
         PathBuf,
         Path,
     },
+    time::Instant,
 };
 use chrono::Utc;
 use sqlx::{
@@ -70,13 +71,15 @@ impl Librarian {
         loop {
             tokio::select! {
                 Some(lib_id) = self.rx.recv() => {
-                    let mut active = active_libs.lock().await;
-                    if active.contains(&lib_id) {
-                        warn!("Library id={} is already scanning, skipping.", lib_id);
-                        continue;
-                    }
+                    {
+                        let mut active = active_libs.lock().await;
+                        if active.contains(&lib_id) {
+                            warn!("Library id={} is already scanning, skipping.", lib_id);
+                            continue;
+                        }
 
-                    active.insert(lib_id);
+                        active.insert(lib_id);
+                    }
 
                     let active_libs = Arc::clone(&active_libs);
                     let pool = pool.clone();
@@ -96,13 +99,8 @@ impl Librarian {
                 }
 
                 Some(lib_scan_result) = futures.next() => {
-                    match lib_scan_result {
-                        Ok(id) => {
-                            info!("Finished scanning library id={}", id);
-                        },
-                        Err(e) => {
-                            info!("Error while scanning library: {}", e);
-                        },
+                    if let Err(e) = lib_scan_result {
+                        info!("Library scan aborted: {}", e);
                     }
                 }
                 
@@ -133,7 +131,18 @@ async fn task_full_scan_library(pool: &Pool<Sqlite>, lib_id: i64) -> Result<()> 
         .await? {
             info!("Starting scan for library name={} id={}", library.name, library.id);
 
-            scan_folder(pool, &library, None).await?;
+            let start_time = Instant::now();
+            let num_files = scan_folder(pool, &library, None).await?;
+            let duration = start_time.elapsed();
+            let seconds = duration.as_secs_f64();
+            let rate = if seconds > 0.0 {
+                num_files as f64 / seconds
+            } else {
+                0.0
+            };
+
+            info!("Finished scanning library id={}. ElapsedTime[secs]={}. NumFiles={} Rate[files/sec]={}", lib_id, seconds, num_files, rate);
+            
         } else {
             info!("Cannot find library with id={}", lib_id);
         }
@@ -141,24 +150,27 @@ async fn task_full_scan_library(pool: &Pool<Sqlite>, lib_id: i64) -> Result<()> 
     Ok(())
 }
 
-async fn scan_folder(pool: &Pool<Sqlite>, library: &Library, path_override: Option<&Path>) -> Result<()> {
+async fn scan_folder(pool: &Pool<Sqlite>, library: &Library, path_override: Option<&Path>) -> Result<u64> {
     let library_path: PathBuf = path_override
         .map(|p| p.to_path_buf())
         .unwrap_or_else(|| PathBuf::from(&library.path));
 
     let mut entries = fs::read_dir(library_path).await?;
+    let mut num_files = 0;
 
     while let Some(entry) = entries.next_entry().await? {
         let path = entry.path();
 
         if path.is_dir() {
-            Box::pin(scan_folder(pool, &library, Some(&path))).await?;
+            num_files += Box::pin(scan_folder(pool, &library, Some(&path))).await?;
             continue;
         }
 
         if !path.is_file() {
             continue;
         }
+
+        num_files += 1;
 
         let file_path = path.strip_prefix(&library.path)
             .unwrap_or(&path)
@@ -231,5 +243,5 @@ async fn scan_folder(pool: &Pool<Sqlite>, library: &Library, path_override: Opti
     .execute(pool)
     .await?;
 
-    Ok(()) 
+    Ok(num_files) 
 }
