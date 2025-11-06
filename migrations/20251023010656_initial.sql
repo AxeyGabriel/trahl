@@ -3,6 +3,7 @@
 -- =====================================================
 
 PRAGMA foreign_keys = ON;
+PRAGMA journal_mode = WAL;
 
 -- Known workers
 CREATE TABLE workers (

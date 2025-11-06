@@ -36,6 +36,8 @@ use tracing::{
     warn,
     error,
     debug,
+    instrument,
+    Span,
 };
 use anyhow::Result;
 
@@ -117,6 +119,11 @@ impl Librarian {
     }
 }
 
+#[instrument(
+    name = "full_scan_libray",
+    skip(pool),
+    fields(elapsed_seconds, scanned_files, scan_rate)
+)]
 async fn task_full_scan_library(pool: &Pool<Sqlite>, lib_id: i64) -> Result<()> {
         if let Some(library) = sqlx::query_as!(
             Library,
@@ -129,7 +136,7 @@ async fn task_full_scan_library(pool: &Pool<Sqlite>, lib_id: i64) -> Result<()> 
         )
         .fetch_optional(pool)
         .await? {
-            info!("Starting scan for library name={} id={}", library.name, library.id);
+            info!("Starting scan for library name={}", library.name);
 
             let start_time = Instant::now();
             let num_files = scan_folder(pool, &library, None).await?;
@@ -141,10 +148,29 @@ async fn task_full_scan_library(pool: &Pool<Sqlite>, lib_id: i64) -> Result<()> 
                 0.0
             };
 
-            info!("Finished scanning library id={}. ElapsedTime[secs]={}. NumFiles={} Rate[files/sec]={}", lib_id, seconds, num_files, rate);
+            let now = Utc::now();
+
+            sqlx::query!(
+                r#"
+                UPDATE library
+                SET last_scanned_at = ?
+                WHERE id = ?
+                "#,
+                now,
+                library.id
+            )
+            .execute(pool)
+            .await?;
+
+            let span = Span::current();
+            span.record("elapsed_seconds", seconds);
+            span.record("scanned_files", num_files);
+            span.record("scan_rate", rate);
+            
+            info!("Finished");
             
         } else {
-            info!("Cannot find library with id={}", lib_id);
+            error!("Cannot find library");
         }
 
     Ok(())
@@ -228,20 +254,6 @@ async fn scan_folder(pool: &Pool<Sqlite>, library: &Library, path_override: Opti
             library.id, file_path, file_size, hash
         );
     }
-
-    let now = Utc::now();
-
-    sqlx::query!(
-        r#"
-        UPDATE library
-        SET last_scanned_at = ?
-        WHERE id = ?
-        "#,
-        now,
-        library.id
-    )
-    .execute(pool)
-    .await?;
 
     Ok(num_files) 
 }
