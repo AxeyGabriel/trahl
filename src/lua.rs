@@ -32,7 +32,7 @@ const INTEGRATIONS_LUA: &str = include_str!("../lualib/integrations.lua");
 
 pub struct TrahlRuntimeCtx {
     status_tx: mpsc::Sender<JobStatusMsg>,
-    job_id: u128,
+    job_id: i64,
 }
 
 impl TrahlRuntimeCtx {
@@ -54,7 +54,7 @@ pub struct TrahlRuntimeBuilder {
 }
 
 impl TrahlRuntimeBuilder {
-    pub fn new(job_id: u128, status_tx: mpsc::Sender<JobStatusMsg>, code: String) -> Self {
+    pub fn new(job_id: i64, status_tx: mpsc::Sender<JobStatusMsg>, code: String) -> Self {
         Self {
             vars: HashMap::new(),
             public: Arc::new(TrahlRuntimeCtx {

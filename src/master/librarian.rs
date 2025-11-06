@@ -120,7 +120,7 @@ impl Librarian {
 }
 
 #[instrument(
-    name = "full_scan_libray",
+    name = "full_scan_library",
     skip(pool),
     fields(elapsed_seconds, scanned_files, scan_rate)
 )]
@@ -188,6 +188,7 @@ async fn scan_folder(pool: &Pool<Sqlite>, library: &Library, path_override: Opti
         let path = entry.path();
 
         if path.is_dir() {
+            debug!("Entering subdirectory {}", path.strip_prefix(&library.path).unwrap_or(&path).display());
             num_files += Box::pin(scan_folder(pool, &library, Some(&path))).await?;
             continue;
         }
@@ -207,9 +208,9 @@ async fn scan_folder(pool: &Pool<Sqlite>, library: &Library, path_override: Opti
             r#"
             SELECT file_entry.id
             FROM file_entry
-            LEFT JOIN Job ON job.output_file = file_entry.file_path
+            LEFT JOIN job ON job.output_file = file_entry.file_path
             WHERE file_entry.file_path = ?
-            OR Job.output_file = ?
+            OR job.output_file = ?
             LIMIT 1
             "#
         )
@@ -237,18 +238,35 @@ async fn scan_folder(pool: &Pool<Sqlite>, library: &Library, path_override: Opti
         .await
         .unwrap()?;
 
-        sqlx::query!(
+        let mut tx = pool.begin().await?;
+
+        let feid = sqlx::query!(
             r#"
             INSERT INTO file_entry (library_id, file_path, file_size, hash)
             VALUES (?, ?, ?, ?)
+            RETURNING ID
             "#,
             library.id,
             file_path,
             file_size,
             hash
         )
-        .execute(pool)
+        .fetch_one(&mut *tx)
+        .await?
+        .id
+        .expect("Insert should return an id");
+        
+        sqlx::query!(
+            r#"
+            INSERT INTO job (file_id, status)
+            VALUES (?, "queued")
+            "#,
+            feid
+        )
+        .execute(&mut *tx)
         .await?;
+
+        tx.commit().await?;
 
         debug!("Discovered file for library id={}: path={} size={}, hash={}",
             library.id, file_path, file_size, hash

@@ -83,17 +83,11 @@ async fn master_runtime() {
         rx_socketserver
     ) = mpsc::channel::<SocketEvent>(8);
     
-    let (
-        tx_jobs,
-        rx_jobs
-    ) = mpsc::channel::<JobContract>(8);
-
     let librarian = Librarian::new(rx_fullscan);
     
     let manager = JobManager::new(
         rx_manager,
         rx_socketserver,
-        rx_jobs,
         tx_events.clone(),
     );
     
@@ -104,7 +98,7 @@ async fn master_runtime() {
 
     tokio::spawn(web_service(ctx.clone(), tx_events));
 
-    let _ = tx_fullscan.send(1).await;
+    //let _ = tx_fullscan.send(1).await;
 
     let _ = tokio::join!(
         socket_server.run(ctx.clone()),

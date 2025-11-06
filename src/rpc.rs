@@ -64,7 +64,7 @@ pub struct WorkerInfo {
 
 #[derive(Debug, Encode, Decode, Clone, PartialEq)]
 pub struct JobMsg {
-    pub job_id: u128,
+    pub job_id: i64,
     pub script: String,
     pub vars: HashMap<String, String>,
     pub file: String,
@@ -75,12 +75,12 @@ pub struct JobMsg {
 #[derive(Debug, Encode, Decode, Clone, PartialEq)]
 pub struct JobStatusMsg {
     pub timestamp: u64,
-    pub job_id: u128,
+    pub job_id: i64,
     pub status: JobStatus,
 }
 
 impl JobStatusMsg {
-    fn new(job_id: u128, status: JobStatus) -> Self {
+    fn new(job_id: i64, status: JobStatus) -> Self {
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
@@ -93,35 +93,35 @@ impl JobStatusMsg {
         }
     }
     
-    pub fn job_ack(job_id: u128) -> Self {
+    pub fn job_ack(job_id: i64) -> Self {
         JobStatusMsg::new(job_id, JobStatus::Ack)
     }
     
-    pub fn job_declined(job_id: u128, reason: String) -> Self {
+    pub fn job_declined(job_id: i64, reason: String) -> Self {
         JobStatusMsg::new(job_id, JobStatus::Declined(reason))
     }
     
-    pub fn job_progress(job_id: u128, tp: TranscodeProgress) -> Self {
+    pub fn job_progress(job_id: i64, tp: TranscodeProgress) -> Self {
         JobStatusMsg::new(job_id, JobStatus::Progress(tp))
     }
     
-    pub fn job_copying(job_id: u128) -> Self {
+    pub fn job_copying(job_id: i64) -> Self {
         JobStatusMsg::new(job_id, JobStatus::Copying)
     }
     
-    pub fn job_milestone(job_id: u128, m: String) -> Self {
+    pub fn job_milestone(job_id: i64, m: String) -> Self {
         JobStatusMsg::new(job_id, JobStatus::Milestone(m))
     }
     
-    pub fn job_log(job_id: u128, l: String) -> Self {
+    pub fn job_log(job_id: i64, l: String) -> Self {
         JobStatusMsg::new(job_id, JobStatus::Log(l))
     }
     
-    pub fn job_error(job_id: u128, e: String) -> Self {
+    pub fn job_error(job_id: i64, e: String) -> Self {
         JobStatusMsg::new(job_id, JobStatus::Error(e))
     }
     
-    pub fn job_done(job_id: u128, file: Option<String>) -> Self {
+    pub fn job_done(job_id: i64, file: Option<String>) -> Self {
         JobStatusMsg::new(job_id, JobStatus::Done {file})
     }
 }

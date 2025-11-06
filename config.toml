@@ -2,7 +2,7 @@
 name = "Transcode Movies"
 enabled = true
 source_path = "test-resources/test-library"
-destination_path = "/media/destination/movies"
+destination_path = "/tmp/trahl-test"
 lua_script = "test-resources/test_transcode.lua"
 [jobs.variables]
 EXCLUDECODEC = "h265"
@@ -16,10 +16,11 @@ db_path = "sqlite.db"
 master_addr = "127.0.0.1:8245"
 identifier = "test-worker"
 cache_dir = "/tmp/trahl-cache"
+parallel_jobs = 10
 fs_remaps = [
     { master = "/", worker = "/" }
 ]
 
 [log]
-level = "trace"
+level = "debug"
 file = "/dev/stdout"

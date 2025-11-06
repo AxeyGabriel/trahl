@@ -16,7 +16,7 @@ pub struct Script {
     pub script: String,
     pub source: String,
     pub description: Option<String>,
-    pub updated_at: NaiveDateTime,
+    pub updated_at: Option<NaiveDateTime>,
 }
 
 #[derive(Debug, Clone, FromRow)]
@@ -24,10 +24,10 @@ pub struct Library {
     pub id: i64,
     pub name: String,
     pub source: String,
-    pub destination: String,
     pub enabled: i64,
     pub path: String,
-    pub script_id: Option<i64>,
+    pub destination: String,
+    pub script_id: i64,
     pub last_scanned_at: Option<NaiveDateTime>,
 }
 
@@ -43,7 +43,6 @@ pub struct Variable {
 pub struct FileEntry {
     pub id: i64,
     pub library_id: i64,
-    pub job_id: Option<i64>,
     pub file_path: String,
     pub file_size: Option<i64>,
     pub hash: Option<String>,

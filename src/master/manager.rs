@@ -1,30 +1,52 @@
 pub mod events;
 
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
-use rand::Rng;
 use tokio::time::{interval, Duration};
 use tokio::sync::{broadcast, mpsc};
-use tracing::{info, warn, error, debug};
-use uuid::Uuid;
+use tracing::{
+    info,
+    warn,
+    error,
+    debug,
+    trace,
+};
+use anyhow::{Result, anyhow};
+use sqlx::{
+    Pool,
+    Sqlite,
+};
 
 use super::MasterCtx;
-use crate::master::manager::events::JobQueueEntry;
 use crate::master::peers::{PeerId, RxManagerMsg};
 use crate::rpc::WorkerInfo;
 use super::socket_server::SocketEvent;
 use super::peers::TxManagerMsg;
 use crate::rpc::JobStatus as RpcJobStatus;
 use crate::rpc::{JobMsg, Message};
-use crate::utils;
 use events::ManagerEvent;
-use super::db;
+use super::db::{
+    self,
+    model::{
+        Job,
+        FileEntry,
+        Library,
+        Script,
+        Variable,
+    },
+};
+use std::sync::{
+    OnceLock,
+    Mutex,
+};
+
+static JOB_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
 
 struct PeerInfo {
     tx: mpsc::Sender<RxManagerMsg>, // To send message to peer
     info: WorkerInfo,
-    jobs: HashMap<Uuid, JobTracking>
+    jobs: HashMap<i64, JobTracking>
 }
 
 impl PeerInfo {
@@ -53,22 +75,22 @@ struct JobTracking {
 
 #[derive(Clone)]
 pub struct JobContract {
-    id: Uuid,
+    id: i64,
     src_file: PathBuf,
     dst_dir: PathBuf,
     vars: HashMap<String, String>,
-    script_path: PathBuf,
+    script: String,
     library_root: PathBuf,
 }
 
 impl JobContract {
-    pub fn new(library_root: PathBuf, src_file: PathBuf, dst_dir: PathBuf, vars: HashMap<String, String>, script_path: PathBuf) -> Self {
+    pub fn new(id: i64, library_root: PathBuf, src_file: PathBuf, dst_dir: PathBuf, vars: HashMap<String, String>, script: String) -> Self {
         Self {
-            id: Uuid::new_v4(),
+            id,
             src_file,
             dst_dir,
             vars,
-            script_path,
+            script,
             library_root,
         }
     }
@@ -79,25 +101,18 @@ pub struct JobManager {
     rx_from_peer: mpsc::Receiver<TxManagerMsg>,
     rx_socket_events: mpsc::Receiver<SocketEvent>,
     peer_registry: HashMap<PeerId, PeerInfo>,
-    rx_job: mpsc::Receiver<JobContract>,
-    pending_jobs: VecDeque<JobContract>,
-    dedup_jobs: HashSet<PathBuf>,
 }
 
 impl JobManager {
     pub fn new(
         rx_from_peer: mpsc::Receiver<TxManagerMsg>,
         rx_socket_events: mpsc::Receiver<SocketEvent>,
-        rx_job: mpsc::Receiver<JobContract>,
         tx_events: broadcast::Sender<ManagerEvent>,
     ) -> Self {
         Self {
             rx_from_peer,
             rx_socket_events,
             peer_registry: HashMap::new(),
-            pending_jobs: VecDeque::new(),
-            dedup_jobs: HashSet::new(),
-            rx_job,
             tx_events,
         }
     }
@@ -105,36 +120,12 @@ impl JobManager {
     pub async fn run(mut self, ctx: Arc<MasterCtx>) {
         let mut ch_term = ctx.ch_terminate.1.clone();
         let mut ch_reload = ctx.ch_reload.1.clone();
-        let mut dispatch_timer = interval(Duration::from_secs(1));
-        let mut sse_timer = interval(Duration::from_millis(200));
+        let mut dispatch_timer = interval(Duration::from_secs(2));
+
+        let pool = db::DB.get().unwrap();
 
         loop {
             tokio::select!(
-                _ = sse_timer.tick() => {
-                    let mut rng = rand::rng();
-                    let value: f64 = rng.random_range(0.0..=100.0);
-                    let me = ManagerEvent::JobQueue(vec![
-                        JobQueueEntry {
-                            file: "abc.mp4".to_string(),
-                            library: "Movies".to_string(),
-                            worker: "-".to_string(),
-                            status: "QUEUED".to_string(),
-                            milestone: "-".to_string(),
-                            progress: "-".to_string(),
-                            eta: "-".to_string(),
-                        },
-                        JobQueueEntry {
-                            file: "HIMYM.S01E01.h264.1080p.mkv".to_string(),
-                            library: "Movies".to_string(),
-                            worker: "worker-01".to_string(),
-                            status: "PROCESSING".to_string(),
-                            milestone: "TRANSCODING".to_string(),
-                            progress: format!("{:.1}%", value),
-                            eta: "00:14:35".to_string(),
-                        },
-                    ]);
-                    _ = self.tx_events.send(me);
-                },
                 _ = dispatch_timer.tick() => {
                     let selected_peer = self.peer_registry
                         .iter_mut()
@@ -142,12 +133,10 @@ impl JobManager {
                         .min_by_key(|(_, p)| p.active_jobs().len());
 
                     if let Some((_id, peer)) = selected_peer {
-                        if let Some(job) = self.pending_jobs.pop_front() {
-                            let script = tokio::fs::read_to_string(job.script_path.clone()).await.unwrap();
-                            let src_file_clone = job.src_file.clone();
+                        if let Ok(Some(job)) = build_job_from_db().await {
                             let jobmsg = JobMsg {
-                                job_id: utils::uuid_to_u128(job.id),
-                                script: script,
+                                job_id: job.id,
+                                script: job.script.clone(),
                                 vars: job.vars.clone(),
                                 file: job.src_file.clone().into_os_string().to_string_lossy().into_owned(),
                                 dst_dir: job.dst_dir.clone().to_string_lossy().to_string(),
@@ -164,12 +153,8 @@ impl JobManager {
                                 status: JobStatus::Sent,
                                 contract: job,
                             });
-                            self.dedup_jobs.remove(&src_file_clone);
                         }
                     }
-                },
-                Some(job) = self.rx_job.recv() => {
-                    self.dedup_schedule_job(job).await;
                 },
                 Some((peer_id, msg)) = self.rx_from_peer.recv() => {
                     if let Some(peer) = self.peer_registry.get_mut(&peer_id) {
@@ -197,7 +182,17 @@ impl JobManager {
                                     .map(|job| job.contract.clone())
                                     .collect();
                                 for job in active_jobs {
-                                    self.dedup_schedule_job(job).await;
+                                    let _ = sqlx::query!(
+                                        r#"
+                                        UPDATE job
+                                        SET status = 'queued',
+                                            started_at = NULL
+                                        WHERE id = ?
+                                        "#,
+                                        job.id
+                                    )
+                                    .execute(pool)
+                                    .await;
                                 }
                             }
                             self.peer_registry.remove(&peer_id);
@@ -222,22 +217,15 @@ impl JobManager {
             );
         }
     }
-
-    async fn dedup_schedule_job(&mut self, job: JobContract) {
-        if self.dedup_jobs.insert(job.src_file.clone()) {
-            info!("Received job for file {}", job.src_file.display());
-            self.pending_jobs.push_back(job);
-        } else {
-            debug!("Skipping duplicated job for {}", job.src_file.display());
-        }
-    }
 }
 
 async fn msg_from_peer(peer: &mut PeerInfo, msg: Message) {
+    let pool = db::DB.get().unwrap();
+
     match msg {
         Message::JobStatus(msg) => {
-            let job_id = &utils::u128_to_uuid(msg.job_id);
-            if let Some(job_tracking) = peer.jobs.get_mut(job_id) {
+            let job_id = msg.job_id;
+            if let Some(job_tracking) = peer.jobs.get_mut(&job_id) {
                 job_tracking.events
                     .push(msg.status.clone());
 
@@ -249,6 +237,17 @@ async fn msg_from_peer(peer: &mut PeerInfo, msg: Message) {
                     RpcJobStatus::Declined(reason) => {
                         debug!("Job {} declined on worker {}: {}", msg.job_id, peer.info.identifier, reason);
                         job_tracking.status = JobStatus::Ended;
+                        let _ = sqlx::query!(
+                            r#"
+                            UPDATE job
+                            SET status = 'queued',
+                                started_at = NULL
+                            WHERE id = ?
+                            "#,
+                            job_id
+                        )
+                        .execute(pool)
+                        .await;
                     },
                     RpcJobStatus::Progress(p) => {
                         debug!("Job {} progress: {:?} eta: {:?}", msg.job_id, p.percentage, p.eta);
@@ -263,10 +262,30 @@ async fn msg_from_peer(peer: &mut PeerInfo, msg: Message) {
                         error!("Job {} failed on worker {}: {}", msg.job_id, peer.info.identifier, descr);
                         job_tracking.status = JobStatus::Ended;
                         //todo! signal job discovery system
+                        let _ = sqlx::query!(
+                            r#"
+                            UPDATE job
+                            SET status = 'failure'
+                            WHERE id = ?
+                            "#,
+                            job_id
+                        )
+                        .execute(pool)
+                        .await;
                     },
                     RpcJobStatus::Done { file } => {
                         info!("Job {} completed successfuly on worker {}, output={:?}", msg.job_id, peer.info.identifier, file);
                         job_tracking.status = JobStatus::Ended;
+                        let _ = sqlx::query!(
+                            r#"
+                            UPDATE job
+                            SET status = 'success'
+                            WHERE id = ?
+                            "#,
+                            job_id
+                        )
+                        .execute(pool)
+                        .await;
                         //todo! signal job discovery system
                     },
                     RpcJobStatus::Copying => {
@@ -280,4 +299,114 @@ async fn msg_from_peer(peer: &mut PeerInfo, msg: Message) {
         },
         _ => {}
     }
+}
+
+fn job_lock() -> &'static Mutex<()> {
+    JOB_LOCK.get_or_init(|| Mutex::new(()))
+}
+
+async fn build_job_from_db() -> Result<Option<JobContract>> {
+    let Ok(_guard) = job_lock().try_lock() else {
+        info!("Another instance of build_job_from_db is already running");
+        return Err(anyhow!("resource locked"));
+    };
+
+    let pool = db::DB.get().unwrap();
+
+    let res =  sqlx::query_as!(
+        Job,
+        r#"
+        SELECT * FROM job
+        WHERE status = 'queued'
+        ORDER BY created_at ASC
+        LIMIT 1
+        "#
+    )
+    .fetch_optional(pool)
+    .await?;
+
+    let job = match res {
+        Some(res) => {
+            res
+        },
+        None => {
+            trace!("No pending jobs found");
+            return Ok(None);
+        }
+    };
+   
+    let file = sqlx::query_as!(
+        FileEntry,
+        r#"
+        SELECT * FROM file_entry WHERE id = ?
+        "#,
+        job.file_id
+    )
+    .fetch_one(pool)
+    .await?;
+    
+    let library = sqlx::query_as!(
+        Library,
+        r#"
+        SELECT * FROM library WHERE id = ?
+        "#,
+        file.library_id
+    )
+    .fetch_one(pool)
+    .await?;
+
+    let script = sqlx::query_as!(
+        Script,
+        r#"
+        SELECT * FROM script WHERE id = ?
+        "#,
+        library.script_id
+    )
+    .fetch_one(pool)
+    .await?;
+
+    let variables = sqlx::query_as!(
+        Variable,
+        r#"
+        SELECT * FROM variables
+        WHERE library_id IS NULL
+        OR library_id = ?
+        "#,
+        library.id
+    )
+    .fetch_all(pool)
+    .await?;
+
+    let variables_map: HashMap<String, String> = variables
+        .into_iter()
+        .filter_map(|v| {
+            v.value.map(|val| (v.key, val))
+        }).collect();
+
+
+    sqlx::query!(
+        r#"
+        UPDATE job
+        SET status = 'processing',
+            started_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+        "#,
+        job.id
+    )
+    .execute(pool)
+    .await?;
+
+
+    let abs_path = PathBuf::from(&library.path).join(&file.file_path);
+
+    let jc = JobContract::new(
+        job.id,
+        library.path.into(),
+        abs_path,
+        library.destination.into(),
+        variables_map,
+        script.script,
+    );
+        
+    Ok(Some(jc))
 }

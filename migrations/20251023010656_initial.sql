@@ -32,7 +32,7 @@ CREATE TABLE library (
 	destination		TEXT NOT NULL,
 	enabled			INTEGER NOT NULL,
     path            TEXT NOT NULL UNIQUE,
-	script_id		INTEGER REFERENCES script(id),
+	script_id		INTEGER NOT NULL REFERENCES script(id),
     last_scanned_at DATETIME
 );
 
@@ -47,11 +47,11 @@ CREATE TABLE variables (
 CREATE TABLE file_entry (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     library_id      INTEGER NOT NULL REFERENCES library(id) ON DELETE CASCADE,
-    job_id			INTEGER REFERENCES job(id) ON DELETE CASCADE DEFAULT NULL,
-    file_path       TEXT NOT NULL UNIQUE, -- relative to library root path
+    file_path       TEXT NOT NULL, -- relative to library root path
     file_size       INTEGER,
     hash            TEXT,
-    discovered_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    discovered_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	UNIQUE(library_id, file_path)
 );
 
 -- Processing jobs associated with discovered files
@@ -65,5 +65,6 @@ CREATE TABLE job (
     output_size     INTEGER,
     created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     started_at      DATETIME,
-    finished_at     DATETIME
+    finished_at     DATETIME,
+	UNIQUE(file_id, status)
 );
